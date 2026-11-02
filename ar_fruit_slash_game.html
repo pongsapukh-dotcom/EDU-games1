@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>EduGame AR ฟันผลไม้เลี่ยงระเบิด</title>
+<script src="edugame-common.js"></script>
+<script src="edugame-libs.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Mitr:wght@300;400;500;600;700;800&display=swap');
+*{box-sizing:border-box} html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07150d;color:#fff;font-family:Mitr,sans-serif}
+#app{position:relative;width:100%;height:100%;overflow:hidden;background:#07150d}
+#video{position:absolute;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);filter:saturate(1.04) brightness(.78)}
+#gameCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at center,transparent 45%,rgba(0,0,0,.55) 100%)}
+.hud{position:absolute;left:14px;right:14px;top:12px;display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:start;z-index:5;pointer-events:none}
+.badge{background:rgba(10,18,13,.78);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(8px);border-radius:14px;padding:8px 12px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.badge b{font-size:19px}.badge small{display:block;color:#d5dfd8;font-size:10px}
+.centerHud{text-align:center}.timer{font-size:27px;color:#fff}.timer.warn{color:#ffd34d}.timer.danger{color:#ff6b6b}
+.questionBox{position:absolute;top:78px;left:50%;transform:translateX(-50%);width:min(760px,calc(100% - 30px));background:rgba(40,22,7,.84);border:2px solid rgba(255,197,75,.65);border-radius:16px;padding:10px 18px;text-align:center;z-index:4;box-shadow:0 10px 28px rgba(0,0,0,.22)}
+.questionBox .num{font-size:11px;color:#ffd86b}.questionBox .q{font-size:19px;font-weight:700;margin-top:2px}
+.hint{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);z-index:5;background:rgba(5,18,10,.72);border:1px solid rgba(255,255,255,.15);border-radius:30px;padding:8px 16px;font-size:12px;color:#eaf5ee;white-space:nowrap}
+.overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(1,8,4,.76);z-index:20;padding:20px;text-align:center}
+.panel{width:min(560px,100%);background:rgba(18,34,23,.96);border:1px solid rgba(255,255,255,.15);border-radius:24px;padding:30px 24px;box-shadow:0 24px 70px rgba(0,0,0,.4)}
+.panel h1{margin:0 0 8px;font-size:34px}.panel p{color:#d1ddd5;line-height:1.7;margin:8px 0 20px}
+.primary{border:0;border-radius:13px;padding:13px 25px;background:#ffb51f;color:#241300;font:700 17px Mitr;cursor:pointer;box-shadow:0 8px 22px rgba(255,181,31,.25)}
+.secondary{border:1px solid rgba(255,255,255,.2);border-radius:13px;padding:11px 18px;background:rgba(255,255,255,.06);color:#fff;font:500 14px Mitr;cursor:pointer;margin-left:8px}
+.hidden{display:none!important}
+.resultScore{font-size:44px;font-weight:800;color:#ffd45b;margin:8px}
+.resultMeta{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:12px 0 20px}.pill{background:rgba(255,255,255,.08);padding:7px 11px;border-radius:10px;font-size:12px}
+.cameraMsg{font-size:13px;color:#ffcf70;margin-top:10px}
+@media(max-width:650px){.hud{grid-template-columns:auto 1fr auto}.badge{padding:6px 9px}.badge b{font-size:15px}.questionBox{top:70px}.questionBox .q{font-size:16px}.hint{font-size:10px;bottom:10px}.panel h1{font-size:28px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <video id="video" playsinline muted></video>
+  <canvas id="gameCanvas"></canvas>
+  <div class="vignette"></div>
+
+  <div class="hud">
+    <div class="badge"><small>ชีวิต</small><b id="lives">❤️❤️❤️</b></div>
+    <div class="badge centerHud"><small>เวลา</small><b id="timer" class="timer">15</b></div>
+    <div class="badge" style="text-align:right"><small>คะแนน</small><b id="score">0</b></div>
+  </div>
+
+  <div class="questionBox">
+    <div class="num" id="questionNum">ข้อ 1 / 1</div>
+    <div class="q" id="questionText">รอชุดคำถาม...</div>
+    <img id="questionImage" alt="รูปประกอบคำถาม" style="display:none;max-height:64px;max-width:100%;border-radius:8px;margin-top:6px;object-fit:contain">
+  </div>
+  <div class="hint">☝️ เหยียดนิ้วชี้แล้วฟันผ่านผลไม้ • หลีกเลี่ยงระเบิด 💣</div>
+
+  <div id="startOverlay" class="overlay">
+    <div class="panel">
+      <div style="font-size:58px">🍉🔪💣</div>
+      <h1>AR ฟันผลไม้</h1>
+      <p>เปิดกล้อง แล้วใช้ <b>นิ้วชี้เป็นมีด</b> ฟันผลไม้เพื่อเก็บคะแนน<br>ผลไม้ = คำตอบที่ถูกต้อง • ระเบิด = คำตอบที่ผิด</p>
+      <button class="primary" id="startBtn">📷 เปิดกล้องและเริ่มเกม</button>
+      <div style="margin-top:12px"><button class="secondary" id="pointerBtn" style="margin-left:0">🖱️ เล่นด้วยเมาส์ / นิ้วสัมผัส (ไม่ใช้กล้อง)</button></div>
+      <div id="cameraMsg" class="cameraMsg"></div>
+    </div>
+  </div>
+
+  <div id="questionOverlay" class="overlay hidden">
+    <div class="panel">
+      <div style="font-size:45px">🎯</div>
+      <h1 id="roundTitle">ข้อ 1</h1>
+      <p id="roundQuestion">คำถาม</p>
+      <img id="roundImage" alt="รูปประกอบคำถาม" style="display:none;max-height:170px;max-width:100%;border-radius:12px;margin:0 auto 10px;object-fit:contain">
+      <p style="font-size:13px">เตรียมนิ้วชี้ให้พร้อม แล้วกดเริ่ม<br>คุณมีเวลา <b style="color:#ffd45b">15 วินาที</b></p>
+      <button class="primary" id="roundStartBtn">เริ่มฟันผลไม้</button>
+    </div>
+  </div>
+
+  <div id="resultOverlay" class="overlay hidden">
+    <div class="panel">
+      <div style="font-size:50px">🏆</div>
+      <h1>จบเกม!</h1>
+      <div class="resultScore" id="finalScore">0</div>
+      <div class="resultMeta">
+        <span class="pill" id="fruitStat">🍎 ผลไม้ 0</span>
+        <span class="pill" id="bombStat">💣 ระเบิด 0</span>
+        <span class="pill" id="roundStat">ข้อ 0</span>
+      </div>
+      <button class="primary" id="restartBtn">เล่นอีกครั้ง</button>
+      <button class="secondary" id="closeBtn">กลับไปเลือกเกม</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const livesEl = document.getElementById('lives');
+  const timerEl = document.getElementById('timer');
+  const qNumEl = document.getElementById('questionNum');
+  const qTextEl = document.getElementById('questionText');
+  const startOverlay = document.getElementById('startOverlay');
+  const questionOverlay = document.getElementById('questionOverlay');
+  const resultOverlay = document.getElementById('resultOverlay');
+  const cameraMsg = document.getElementById('cameraMsg');
+
+  let questionSet = {name:'ชุดคำถาม',questions:[]};
+  let questions = [];
+  let roundIndex = 0, score = 0, lives = 3;
+  let fruitsSliced = 0, bombsHit = 0;
+  let roundActive = false, gameStarted = false;
+  const ROUND_SECONDS = 15;
+  let roundStartTime = 0, timeLeft = ROUND_SECONDS, lastSpawnSecond = -1;
+  let objects = [], particles = [], trail = [];
+  let lastFrame = performance.now(), handReady = false, lastHand = null;
+  let camHandle = null, tracker = null, hands = null;
+  let pendingStart = false;
+  let pointerMode = false, pointerDown = false;
+
+  const fruitEmoji = ['🍎','🍊','🍉','🍓','🍍','🍌','🥝','🍇','🍑'];
+  const bombEmoji = '💣';
+
+  function resize(){canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px';ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}
+  addEventListener('resize',resize); resize();
+
+  const normalizeAnswer=EduCommon.normalizeAnswer;
+  function escapeText(v){return String(v||'').replace(/[&<>"]/g,'');}
+
+  function getAnswers(q){return (Array.isArray(q.answers)?q.answers:[]).map(normalizeAnswer).slice(0,4)}
+
+  function setQuestionUI(){
+    const q=questions[roundIndex]||{};
+    qNumEl.textContent=`ข้อ ${roundIndex+1} / ${questions.length}`;
+    qTextEl.textContent=q.question||'คำถาม';
+    setImg('questionImage',q.image_url);
+  }
+  function setImg(id,url){const el=document.getElementById(id);if(!el)return;if(url){el.src=url;el.style.display='block'}else{el.removeAttribute('src');el.style.display='none'}}
+
+  function showQuestionOverlay(){
+    roundActive=false;
+    setQuestionUI();
+    document.getElementById('roundTitle').textContent=`ข้อ ${roundIndex+1}`;
+    document.getElementById('roundQuestion').textContent=questions[roundIndex]?.question||'คำถาม';
+    setImg('roundImage',questions[roundIndex]?.image_url);
+    questionOverlay.classList.remove('hidden');
+  }
+
+  function startRound(){
+    questionOverlay.classList.add('hidden');
+    roundActive=true; roundStartTime=performance.now(); timeLeft=ROUND_SECONDS;
+    timerEl.textContent=String(ROUND_SECONDS); timerEl.className='timer';
+    objects=[]; particles=[]; trail=[]; lastSpawnSecond=-1;
+    spawnObjects();
+  }
+
+  function spawnObjects(){
+    const q=questions[roundIndex]||{};
+    const answers=getAnswers(q);
+    const correctIndex=Number.isInteger(q.correct)?q.correct:0;
+    const correct=answers[correctIndex]||{text:'คำตอบที่ถูก',image_url:''};
+    const wrong=answers.filter((_,i)=>i!==correctIndex);
+    const now=performance.now();
+    // ทุก ๆ 1 วินาที: ผลไม้ 5 ชิ้น + ระเบิด 2 ลูก
+    for(let i=0;i<5;i++) objects.push(makeObject('fruit',correct,i));
+    for(let i=0;i<2;i++) objects.push(makeObject('bomb',wrong[i%Math.max(1,wrong.length)]||{text:'คำตอบผิด',image_url:''},i));
+    lastSpawnSecond=Math.floor((now-roundStartTime)/1000);
+  }
+
+  function makeObject(type,answer,i){
+    const w=innerWidth,h=innerHeight;
+    const x=70+Math.random()*Math.max(100,w-140);
+    return {
+      type, answer, x, y:h+75+Math.random()*100,
+      vx:(Math.random()-.5)*(type==='bomb'?110:150), vy:-(720+Math.random()*260),
+      r:type==='bomb'?47:52, rotation:(Math.random()-.5)*.5, vr:(Math.random()-.5)*2.2,
+      sliced:false, born:performance.now()+i*55, remove:false,
+      emoji:type==='bomb'?bombEmoji:fruitEmoji[Math.floor(Math.random()*fruitEmoji.length)]
+    };
+  }
+
+  function update(dt,now){
+    if(roundActive){
+      timeLeft=Math.max(0,ROUND_SECONDS-(now-roundStartTime)/1000);
+      timerEl.textContent=Math.ceil(timeLeft);
+      timerEl.className='timer'+(timeLeft<=3?' danger':timeLeft<=5?' warn':'');
+      const elapsedSecond=Math.floor((now-roundStartTime)/1000);
+      if(elapsedSecond>lastSpawnSecond && elapsedSecond<ROUND_SECONDS){ spawnObjects(); }
+      if(timeLeft<=0){endRound();}
+    }
+    objects.forEach(o=>{
+      if(now<o.born)return;
+      o.x+=o.vx*dt; o.y+=o.vy*dt; o.vy+=900*dt; o.rotation+=o.vr*dt;
+      if(o.x<40||o.x>innerWidth-40)o.vx*=-1;
+    });
+    objects=objects.filter(o=>o.y<innerHeight+140 && !o.remove);
+    particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=600*dt;p.life-=dt});
+    particles=particles.filter(p=>p.life>0);
+    trail=trail.filter(p=>now-p.t<170);
+  }
+
+  function drawImageCover(img,x,y,w,h){
+    const iw=img.naturalWidth||1,ih=img.naturalHeight||1,scale=Math.max(w/iw,h/ih),dw=iw*scale,dh=ih*scale;
+    ctx.drawImage(img,x-dw/2,y-dh/2,dw,dh);
+  }
+
+  function drawObject(o){
+    if(performance.now()<o.born)return;
+    ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.rotation);
+    ctx.shadowBlur=18;ctx.shadowColor=o.type==='bomb'?'rgba(255,60,60,.65)':'rgba(255,205,60,.55)';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    const mode=EduCommon.answerMode(o.answer);
+    const fill=o.type==='bomb'?'rgba(115,14,14,.92)':'rgba(20,74,39,.92)';
+    if(mode==='text'){
+      // ไม่มีรูป -> แสดงข้อความที่พิมพ์ไว้ (มีผลไม้/ระเบิดเป็นตัวตกแต่ง)
+      ctx.font=`${o.r*1.55}px "Apple Color Emoji","Segoe UI Emoji",sans-serif`;
+      ctx.fillText(o.emoji,0,-8);
+      ctx.shadowBlur=0;
+      EduCommon.drawAnswerCard(ctx,o.answer,0,o.r*.72+16,{fill,stroke:'rgba(255,255,255,.72)',lineWidth:1,font:'Mitr, sans-serif',fontSize:14,maxTextWidth:190,minWidth:90,textOnlyHeight:32});
+    }else{
+      // มีรูป -> แสดงรูป และถ้ามีข้อความจะอยู่ใต้ภาพ
+      ctx.shadowBlur=0;
+      const box=EduCommon.drawAnswerCard(ctx,o.answer,0,0,{fill,stroke:'rgba(255,255,255,.9)',lineWidth:3,font:'Mitr, sans-serif',fontSize:14,imageSize:o.r*1.5});
+      ctx.font='24px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
+      ctx.fillText(o.emoji,box.w/2-6,-box.h/2+6);
+    }
+    ctx.restore();
+  }
+  function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+
+  function draw(){
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    objects.forEach(drawObject);
+    particles.forEach(p=>{
+      ctx.globalAlpha=Math.max(0,p.life/.65);ctx.fillStyle=p.type==='bomb'?'#ff4f4f':'#ffd45b';ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
+    });
+    ctx.globalAlpha=1;
+    if(trail.length>1){
+      ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+      for(let i=1;i<trail.length;i++){
+        const a=trail[i-1],b=trail[i];const alpha=i/trail.length;
+        ctx.strokeStyle=`rgba(120,220,255,${alpha*.9})`;ctx.lineWidth=4+alpha*10;
+        ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+      }
+      ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=3;
+      const p=trail[trail.length-1];ctx.beginPath();ctx.arc(p.x,p.y,9,0,Math.PI*2);ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function slashAt(x,y){
+    if(!roundActive)return;
+    for(const o of objects){
+      if(o.sliced||performance.now()<o.born)continue;
+      if(Math.hypot(x-o.x,y-o.y)<o.r*1.05){
+        o.sliced=true;
+        if(o.type==='fruit'){
+          score+=10;fruitsSliced++; burst(o.x,o.y,'fruit');
+        }else{
+          score=Math.max(0,score-5);bombsHit++;lives--;burst(o.x,o.y,'bomb');updateLives();
+          if(lives<=0){endGame();return;}
+        }
+        updateScore();
+      }
+    }
+  }
+  function burst(x,y,type){
+    for(let i=0;i<18;i++)particles.push({x,y,vx:(Math.random()-.5)*330,vy:(Math.random()-.8)*330,size:3+Math.random()*6,life:.45+Math.random()*.25,type});
+  }
+  function updateScore(){scoreEl.textContent=score;EduCommon.reportScore(score)}
+  function updateLives(){livesEl.textContent='❤️'.repeat(lives)+'🖤'.repeat(3-lives)}
+
+  function endRound(){
+    if(!roundActive)return;
+    roundActive=false;
+    setTimeout(()=>{
+      if(lives<=0){endGame();return}
+      roundIndex++;
+      if(roundIndex>=questions.length)endGame(); else showQuestionOverlay();
+    },500);
+  }
+
+  function endGame(){
+    roundActive=false;gameStarted=false;
+    document.getElementById('finalScore').textContent=score;
+    document.getElementById('fruitStat').textContent=`🍎 ผลไม้ ${fruitsSliced}`;
+    document.getElementById('bombStat').textContent=`💣 ระเบิด ${bombsHit}`;
+    document.getElementById('roundStat').textContent=`📝 ${Math.min(roundIndex+1,questions.length)} ข้อ`;
+    resultOverlay.classList.remove('hidden');
+    window.parent.postMessage({type:'EDUGAME_FRUIT_RESULT',payload:{score,fruitsSliced,bombsHit,rounds:questions.length}},'*');
+    EduCommon.reportScore(score,{final:true});
+  }
+
+  function beginGame(delay){
+    startOverlay.classList.add('hidden');
+    resetGame();
+    setTimeout(showQuestionOverlay,delay||350);
+  }
+
+  function enterPointerMode(msg){
+    pointerMode=true;
+    cameraMsg.textContent=msg||'โหมดเมาส์/สัมผัส: กดค้างแล้วลากผ่านผลไม้เพื่อฟัน';
+    document.querySelector('.hint').textContent='🖱️ กดค้างแล้วลากเมาส์/นิ้วผ่านผลไม้เพื่อฟัน • หลีกเลี่ยงระเบิด 💣';
+    video.style.display='none';
+    if(gameStarted||!resultOverlay.classList.contains('hidden')){ // สลับกลางเกม/ตอนดูผลคะแนน: ไม่รีเซ็ตเกม
+      lastHand=null;
+      const hint=document.querySelector('.hint'),old=hint.textContent;
+      hint.textContent='⚠️ '+(msg||'สลับเป็นโหมดเมาส์/สัมผัส');
+      setTimeout(()=>{hint.textContent='🖱️ กดค้างแล้วลากเมาส์/นิ้วผ่านผลไม้เพื่อฟัน • หลีกเลี่ยงระเบิด 💣'},5000);
+      return;
+    }
+    beginGame(msg?1200:350);
+  }
+
+  async function startCamera(){
+    const btn=document.getElementById('startBtn');
+    btn.disabled=true;
+    cameraMsg.textContent='กำลังเปิดกล้อง... (กดอนุญาตเมื่อเบราว์เซอร์ถาม)';
+    try{
+      camHandle=await EduLibs.openCamera(video);
+    }catch(e){
+      btn.disabled=false;
+      enterPointerMode('เปิดกล้องไม่ได้: '+EduLibs.explainCameraError(e)+' — สลับเป็นโหมดเมาส์/สัมผัสให้แล้ว');
+      return;
+    }
+    camHandle.onEnded(()=>fallbackToPointer('กล้องหยุดส่งภาพ — สลับเป็นโหมดเมาส์/สัมผัสให้แล้ว'));
+    cameraMsg.textContent='กล้องพร้อมแล้ว ✓ กำลังโหลดระบบตรวจจับมือ...';
+    try{
+      await EduLibs.loadAll(['hands']);
+      initHands();
+      await EduLibs.initHands(hands);
+      tracker=EduLibs.trackHands(video,hands,{onFatal:()=>fallbackToPointer('ระบบตรวจจับมือหยุดทำงาน — สลับเป็นโหมดเมาส์/สัมผัสให้แล้ว')});
+    }catch(e){
+      btn.disabled=false;
+      hands=null;
+      fallbackToPointer('โหลดระบบตรวจจับมือไม่ได้ (ตรวจสอบอินเทอร์เน็ต) — สลับเป็นโหมดเมาส์/สัมผัสให้แล้ว');
+      return;
+    }
+    cameraMsg.textContent='พร้อมเล่น ✓';
+    beginGame(350);
+  }
+
+  function fallbackToPointer(msg){
+    if(tracker){tracker.stop();tracker=null}
+    if(camHandle){camHandle.stop();camHandle=null}
+    enterPointerMode(msg);
+  }
+
+  function moveBlade(x,y){
+    if(lastHand){
+      const steps=Math.max(1,Math.ceil(Math.hypot(x-lastHand.x,y-lastHand.y)/16));
+      for(let i=1;i<=steps;i++){
+        const px=lastHand.x+(x-lastHand.x)*i/steps,py=lastHand.y+(y-lastHand.y)*i/steps;
+        trail.push({x:px,y:py,t:performance.now()});slashAt(px,py);
+      }
+    }
+    lastHand={x,y};
+  }
+
+  canvas.addEventListener('pointerdown',e=>{ if(!pointerMode)return; pointerDown=true; lastHand=null; try{canvas.setPointerCapture(e.pointerId)}catch(_){} moveBlade(e.clientX,e.clientY); e.preventDefault(); });
+  canvas.addEventListener('pointermove',e=>{ if(!pointerMode||!pointerDown)return; moveBlade(e.clientX,e.clientY); e.preventDefault(); });
+  const endPtr=()=>{ pointerDown=false; lastHand=null; };
+  canvas.addEventListener('pointerup',endPtr); canvas.addEventListener('pointercancel',endPtr); canvas.addEventListener('pointerleave',endPtr);
+
+  function initHands(){
+    if(hands)return;
+    hands=new Hands({locateFile:file=>EduLibs.handsBase()+file});
+    hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:.58,minTrackingConfidence:.58});
+    hands.onResults(results=>{
+      handReady=!!(results.multiHandLandmarks&&results.multiHandLandmarks.length);
+      if(!handReady){lastHand=null;return}
+      const lm=results.multiHandLandmarks[0], tip=lm[8];
+      // แปลงพิกัดให้ตรงกับภาพกล้องที่ถูกกลับด้านและครอบตัดแบบ cover
+      const mp=EduLibs.mapPoint(video,tip.x,tip.y,innerWidth,innerHeight),x=mp.x,y=mp.y;
+      const extended = tip.y < lm[6].y; // นิ้วชี้เหยียดเป็นหลัก
+      if(extended){ moveBlade(x,y); } else lastHand=null;
+    });
+  }
+
+  function resetGame(){
+    if(!questions.length){questions=EduCommon.defaultQuestions();}
+    roundIndex=0;score=0;lives=3;fruitsSliced=0;bombsHit=0;objects=[];particles=[];trail=[];gameStarted=true;updateScore();updateLives();setQuestionUI();
+  }
+
+  document.getElementById('startBtn').onclick=startCamera;
+  document.getElementById('pointerBtn').onclick=()=>enterPointerMode();
+  document.getElementById('roundStartBtn').onclick=startRound;
+  document.getElementById('restartBtn').onclick=()=>{resultOverlay.classList.add('hidden');resetGame();showQuestionOverlay()};
+  document.getElementById('closeBtn').onclick=()=>window.parent.postMessage({type:'EDUGAME_CLOSE_GAME'},'*');
+
+  window.addEventListener('message',e=>{
+    if(e.data?.type==='EDUGAME_QUESTION_SET'){
+      questionSet=e.data.payload||{};questions=EduCommon.normalizeQuestions(questionSet.questions);EduCommon.preloadQuestions(questions);
+      if(questions.length){setQuestionUI(); if(!gameStarted){/* wait for start */}}
+    }
+  });
+
+  window.parent.postMessage({type:'EDUGAME_FRUIT_READY'},'*');
+
+  function loop(now){
+    const dt=Math.min(.035,(now-lastFrame)/1000);lastFrame=now;update(dt,now);draw();requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

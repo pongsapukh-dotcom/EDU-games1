@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EduGame | แพลตฟอร์มเกมการเรียนรู้</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="brand" onclick="goHome()">🎮 <span>EduGame</span></div>
+  <nav class="main-nav">
+    <button class="nav-teacher" onclick="goHome()">หน้าแรก</button>
+    <button class="nav-teacher" onclick="openCreate()">สร้างชุดคำถาม</button>
+    <button class="nav-teacher" onclick="showPage('games')">เลือกเกม</button>
+    <button id="loginNav" class="login-nav nav-teacher" onclick="showPage('login')">เข้าสู่ระบบ</button>
+  </nav>
+</header>
+
+<div id="envWarning" class="env-warning" role="alert" hidden></div>
+
+<main>
+<!-- ============ หน้าแรก ============ -->
+<section id="home" class="page active">
+  <div class="hero">
+    <div class="hero-text">
+      <span class="pill">EDUCATIONAL GAME PLATFORM</span>
+      <h1>สร้างคำถามครั้งเดียว<br><span>เล่นได้หลายเกม</span></h1>
+      <p>สร้างชุดคำถามเพียงครั้งเดียว แล้วนำไปใช้กับเกมการเรียนรู้ได้หลายรูปแบบ ครูสร้างห้อง ส่งลิงก์ให้นักเรียน แล้วเล่นพร้อมกันแบบเรียลไทม์</p>
+      <div class="hero-actions">
+        <button class="primary" onclick="openCreate()">＋ สร้างชุดคำถาม</button>
+        <button class="secondary" onclick="showPage('games')">ดูเกมทั้งหมด →</button>
+      </div>
+    </div>
+    <div class="preview-card">
+      <small>QUESTION SET</small>
+      <h2>ข้อใดเป็นคำกริยา?</h2>
+      <div class="preview-answers">
+        <div class="correct">1 วิ่ง ✓</div><div>2 โรงเรียน</div>
+        <div>3 โต๊ะ</div><div>4 หนังสือ</div>
+      </div>
+      <div class="reuse-box">↻ ชุดคำถามเดียว → หลายรูปแบบเกม</div>
+    </div>
+  </div>
+
+  <div class="join-strip">
+    <div>
+      <strong>👨‍🎓 นักเรียน?</strong>
+      <span>ใส่รหัสห้อง 6 หลักที่ครูให้ หรือกดลิงก์ที่ครูส่งให้ได้เลย ไม่ต้องล็อกอิน</span>
+    </div>
+    <div class="join-strip-form">
+      <input id="homeRoomCode" inputmode="numeric" maxlength="6" placeholder="รหัสห้อง 6 หลัก" onkeydown="if(event.key==='Enter')joinByCode()">
+      <button class="primary" onclick="joinByCode()">เข้าห้อง →</button>
+    </div>
+  </div>
+
+  <h2 class="section-title">หนึ่งชุดคำถาม ใช้งานได้หลายรูปแบบ</h2>
+  <div class="features">
+    <div class="feature-card"><div class="feature-icon">📝</div><h3>สร้างครั้งเดียว</h3><p>ครูสร้างชุดคำถามและคำตอบเพียงครั้งเดียว ใส่ข้อความ รูปภาพ หรือทั้งสองอย่างก็ได้</p></div>
+    <div class="feature-card"><div class="feature-icon">🎮</div><h3>เปลี่ยนเกมได้</h3><p>นำชุดคำถามเดิมไปเล่นกับเกมหลายรูปแบบ</p></div>
+    <div class="feature-card"><div class="feature-icon">👨‍🎓</div><h3>นักเรียนร่วมเล่น</h3><p>ครูสร้างห้อง นักเรียนกดลิงก์ ใส่ชื่อ แล้วเล่นได้ทันที</p></div>
+    <div class="feature-card"><div class="feature-icon">📊</div><h3>ดูคะแนนเรียลไทม์</h3><p>ครูเห็นรายชื่อและคะแนนของนักเรียนทุกคนระหว่างเล่น</p></div>
+  </div>
+
+  <div class="creator-box">
+    <div>แพลตฟอร์ม EduGame</div>
+    <strong>พัฒนาโดย พงศภัค &amp; วริศรา</strong>
+    <span>สาขาคอมพิวเตอร์ศึกษา</span>
+  </div>
+</section>
+
+<!-- ============ สร้างชุดคำถาม (สไตล์ Kahoot) ============ -->
+<section id="create" class="page page-wide">
+  <div class="kh-topbar">
+    <div class="kh-topbar-fields">
+      <input id="setName" class="kh-title-input" maxlength="80" placeholder="ตั้งชื่อชุดคำถาม เช่น วิทยาศาสตร์ ป.5 ระบบสุริยะ">
+      <input id="setDescription" class="kh-desc-input" maxlength="160" placeholder="รายละเอียด (ไม่ใส่ก็ได้)">
+    </div>
+    <div class="kh-topbar-actions">
+      <span id="createModeLabel" class="kh-mode-label">สร้างใหม่</span>
+      <button type="button" class="secondary" onclick="cancelEditSet()">ยกเลิก</button>
+      <button id="saveSetButton" type="button" class="primary" onclick="saveSet()">บันทึกชุดคำถาม</button>
+    </div>
+  </div>
+  <div id="cloudNotice" class="cloud-notice"></div>
+
+  <div class="kh-layout">
+    <aside class="kh-rail" aria-label="รายการคำถาม">
+      <div id="qRail" class="kh-rail-list"></div>
+      <button type="button" class="kh-add" onclick="addQuestion()">＋ เพิ่มคำถาม</button>
+    </aside>
+    <div id="qStage" class="kh-stage"></div>
+  </div>
+</section>
+
+<!-- ============ เลือกเกม ============ -->
+<section id="games" class="page">
+  <div class="page-heading">
+    <span class="pill">GAME MODES</span>
+    <h1>เลือกเกม</h1>
+    <p>คำถามชุดเดียวใช้ได้กับทุกเกม • เล่นคนเดียว หรือสร้างห้องให้นักเรียนเล่นพร้อมกัน</p>
+  </div>
+
+  <div class="saved-panel" id="savedPanel">
+    <b>ยังไม่มีชุดคำถาม</b>
+    <span>สร้างชุดคำถามก่อนเริ่มเล่น</span>
+  </div>
+
+  <div class="game-grid">
+    <div class="game-card">
+      <div class="game-image archery-bg">🏹</div>
+      <div class="game-content">
+        <span class="game-status ready-status">พร้อมใช้งาน</span>
+        <h2>เกมยิงธนู</h2>
+        <p>เล็งและยิงคำตอบที่ถูกต้อง • ตัวเลือกเป็นข้อความ รูปภาพ หรือทั้งสองอย่าง</p>
+        <button class="primary game-button" onclick="startSolo('archery')">▶ เล่นเอง</button>
+        <button class="secondary game-button" onclick="openHostRoom('archery')">👥 สร้างห้องให้นักเรียน</button>
+      </div>
+    </div>
+    <div class="game-card fruit-card">
+      <div class="game-image fruit-bg">🍉🔪</div>
+      <div class="game-content">
+        <span class="game-status ready-status">พร้อมใช้งาน</span>
+        <h2>เกมฟันผลไม้</h2>
+        <p>ใช้มือเป็นมีด ฟันผลไม้ที่เป็นคำตอบถูก และหลบระเบิดคำตอบผิด • ข้อละ 15 วินาที</p>
+        <button class="primary game-button" onclick="startSolo('fruit')">▶ เล่นเอง</button>
+        <button class="secondary game-button" onclick="openHostRoom('fruit')">👥 สร้างห้องให้นักเรียน</button>
+      </div>
+    </div>
+    <div class="game-card cyber-card">
+      <div class="game-image cyber-bg">🛡️🚁</div>
+      <div class="game-content">
+        <span class="game-status ready-status">พร้อมใช้งาน</span>
+        <h2>เกราะเวหาไซเบอร์</h2>
+        <p>กางมือ ล็อกเป้า และยิงโดรนที่เป็นคำตอบ • ตอบได้ 1 คำตอบ คิดได้ข้อละ 15 วินาที</p>
+        <button class="primary game-button" onclick="startSolo('cyber')">▶ เล่นเอง</button>
+        <button class="secondary game-button" onclick="openHostRoom('cyber')">👥 สร้างห้องให้นักเรียน</button>
+      </div>
+    </div>
+    <div class="game-card">
+      <div class="game-image order-bg">🔢</div>
+      <div class="game-content">
+        <span class="game-status">เร็ว ๆ นี้</span>
+        <h2>เกมเรียงลำดับ</h2>
+        <p>เรียงขั้นตอนตามลำดับอัลกอริทึม</p>
+        <button class="disabled-button" disabled>เร็ว ๆ นี้</button>
+      </div>
+    </div>
+    <div class="game-card">
+      <div class="game-image quiz-bg">🎯</div>
+      <div class="game-content">
+        <span class="game-status">เร็ว ๆ นี้</span>
+        <h2>เกมตอบคำถาม</h2>
+        <p>ตอบคำถามและสะสมคะแนน</p>
+        <button class="disabled-button" disabled>เร็ว ๆ นี้</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ เข้าสู่ระบบ ============ -->
+<section id="login" class="page">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-icon">🎮</div>
+      <h1 id="authTitle">เข้าสู่ระบบ</h1>
+      <p id="authSubtitle">สำหรับครูผู้สร้างชุดคำถาม</p>
+      <div id="authStatus" class="auth-status"></div>
+
+      <div id="authForm">
+        <button id="testerButton" type="button" class="tester-button" onclick="testerLogin()">
+          <span class="tester-icon">🧪</span>
+          <span><b>เข้าใช้งานแบบผู้ทดสอบ</b><small>ไม่ต้องสมัคร • กดแล้วเริ่มสร้างและทดลองเล่นได้ทันที</small></span>
+        </button>
+
+        <div class="or-line"><span>หรือใช้บัญชีของครู</span></div>
+
+        <label for="email">อีเมล</label>
+        <input id="email" type="email" placeholder="example@email.com" autocomplete="email">
+
+        <label for="password">รหัสผ่าน</label>
+        <input id="password" type="password" placeholder="รหัสผ่านอย่างน้อย 6 ตัวอักษร" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitAuth()">
+
+        <button id="authButton" class="primary full-button" onclick="submitAuth()">เข้าสู่ระบบ</button>
+        <button id="toggleAuthButton" class="text-button" onclick="toggleAuthMode()">ยังไม่มีบัญชี? สมัครสมาชิก</button>
+      </div>
+
+      <div id="accountBox" class="account-box hidden">
+        <div class="account-name" id="accountName"></div>
+        <div class="account-hint" id="accountHint"></div>
+        <button id="logoutButton" class="secondary full-button" onclick="logout()">ออกจากระบบ</button>
+      </div>
+      <small id="authNote"></small>
+    </div>
+  </div>
+</section>
+
+<!-- ============ นักเรียน: เข้าห้อง ============ -->
+<section id="join" class="page">
+  <div class="login-wrap">
+    <div class="login-card join-card">
+      <div class="login-icon">👨‍🎓</div>
+      <h1>เข้าห้องเรียน</h1>
+      <div class="room-badge">ห้อง <b id="joinRoomCode">------</b></div>
+
+      <div id="joinStepName">
+        <label for="studentName">ชื่อของคุณ</label>
+        <input id="studentName" maxlength="20" placeholder="เช่น สมชาย" autocomplete="nickname" onkeydown="if(event.key==='Enter')joinRoom()">
+        <button id="joinButton" class="primary full-button" onclick="joinRoom()">เข้าห้อง →</button>
+        <small>ไม่ต้องล็อกอิน แค่ใส่ชื่อ แล้วรอครูเริ่มเกม</small>
+      </div>
+
+      <div id="joinStepWait" class="hidden">
+        <div class="wait-orb">⏳</div>
+        <h2 id="joinWaitTitle">เข้าห้องแล้ว</h2>
+        <p id="joinWaitText">รอครูกดเริ่มเกม...</p>
+        <div class="join-me">คุณคือ <b id="joinMeName"></b></div>
+        <div id="studentBoard" class="student-board"></div>
+        <button class="text-button" onclick="leaveRoom()">ออกจากห้อง</button>
+      </div>
+
+      <div id="joinStepError" class="hidden">
+        <div class="wait-orb">⚠️</div>
+        <p id="joinErrorText"></p>
+        <button class="secondary full-button" onclick="leaveRoom()">กลับหน้าแรก</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ครู: ห้องเรียน ============ -->
+<section id="host" class="page">
+  <div class="page-heading">
+    <span class="pill">LIVE ROOM</span>
+    <h1>ห้องเรียนเรียลไทม์</h1>
+    <p id="hostSubtitle"></p>
+  </div>
+
+  <div class="host-grid">
+    <div class="host-card host-code-card">
+      <small>รหัสห้อง</small>
+      <div class="host-code" id="hostCode">------</div>
+      <div class="host-link-row">
+        <input id="hostLink" readonly onclick="this.select()">
+        <button class="secondary" onclick="copyRoomLink()">คัดลอกลิงก์</button>
+      </div>
+      <div id="hostTransport" class="host-transport"></div>
+      <div class="host-actions">
+        <button id="hostStartBtn" class="primary" onclick="hostStartGame()">▶ เริ่มเกมให้ทุกคน</button>
+        <button class="secondary" onclick="hostPlayHere()">🎮 ครูลองเล่น</button>
+        <button class="secondary" onclick="closeHostRoom()">ปิดห้อง</button>
+      </div>
+    </div>
+
+    <div class="host-card">
+      <div class="host-card-head">
+        <h2>ผู้เล่น <span id="hostCount" class="count-badge">0</span></h2>
+        <span id="hostPhase" class="phase-badge">รอผู้เล่น</span>
+      </div>
+      <div id="hostPlayers" class="player-list"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ หน้าเล่นเกม (ใช้ร่วมทุกเกม) ============ -->
+<section id="play" class="page page-wide">
+  <div class="play-bar">
+    <div>
+      <span class="pill" id="playPill">GAME</span>
+      <b id="playTitle"></b>
+    </div>
+    <div class="play-actions">
+      <button id="fsBtn" class="secondary" onclick="toggleFullscreen()" title="เต็มจอ (กด F)">⛶ เต็มจอ</button>
+      <button id="playBackBtn" class="secondary" onclick="leaveGame()">← กลับ</button>
+    </div>
+  </div>
+  <div class="ar-game-wrap" id="gameWrap">
+    <button class="fs-exit" onclick="toggleFullscreen()">✕ ออกจากเต็มจอ</button>
+    <iframe id="gameFrame" title="เกม" allow="camera *; microphone *; fullscreen *" allowfullscreen></iframe>
+  </div>
+</section>
+</main>
+
+<footer>© 2026 EduGame — Developed by <strong>พงศภัค &amp; วริศรา</strong></footer>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>window.supabase||document.write('<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"><\/script>')</script>
+<script>window.supabase||document.write('<script src="vendor/supabase.js"><\/script>')</script>
+<script src="supabase-config.js"></script>
+<script src="edugame-common.js"></script>
+<script src="realtime.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

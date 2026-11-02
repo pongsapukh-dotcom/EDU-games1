@@ -1,0 +1,3070 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<script src="edugame-common.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>EduGame AR ยิงธนูตอบคำถาม</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- 3D + Hand Tracking: โหลดผ่าน edugame-libs.js (vendor/ -> jsDelivr -> unpkg) -->
+  <script src="edugame-libs.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:rgba(11,16,32,.72);
+      --line:rgba(255,255,255,.18);
+      --good:#34d399;
+      --bad:#fb7185;
+      --gold:#facc15;
+      --cyan:#38bdf8;
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      margin:0;
+      overflow:hidden;
+      font-family:"Mitr","Sarabun","Noto Sans Thai",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:var(--bg);
+      color:white;
+    }
+
+    #app{
+      position:fixed;
+      inset:0;
+      overflow:hidden;
+      background:radial-gradient(circle at 30% 20%, #253159 0%, #09111f 50%, #030712 100%);
+    }
+
+    #video{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:fill;
+      transform:scaleX(-1);
+      filter:saturate(1.12) contrast(1.04) brightness(.93);
+    }
+
+    #threeCanvas,
+    #debugCanvas{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      pointer-events:none;
+    }
+
+    #debugCanvas{ z-index:7; opacity:.9; }
+    #threeCanvas{ z-index:6; }
+
+    .zone{
+      position:absolute;
+      top:0;
+      bottom:0;
+      z-index:5;
+      pointer-events:none;
+    }
+
+    #wordZone{
+      left:0;
+      width:46%;
+      background:linear-gradient(90deg, rgba(56,189,248,.16), rgba(56,189,248,.02));
+      border-right:2px dashed rgba(56,189,248,.65);
+    }
+
+    #playerZone{
+      right:0;
+      width:50%;
+      background:linear-gradient(270deg, rgba(250,204,21,.14), rgba(250,204,21,.02));
+      border-left:2px dashed rgba(250,204,21,.70);
+    }
+
+    .zoneLabel{
+      position:absolute;
+      top:88px;
+      left:10px;
+      right:10px;
+      text-align:center;
+      padding:8px 10px;
+      border-radius:18px;
+      font-weight:900;
+      letter-spacing:.2px;
+      background:rgba(0,0,0,.36);
+      border:1px solid rgba(255,255,255,.18);
+      text-shadow:0 2px 8px rgba(0,0,0,.55);
+    }
+
+    #hud{
+      position:absolute;
+      top:14px;
+      left:14px;
+      right:14px;
+      z-index:20;
+      display:grid;
+      grid-template-columns:repeat(4, minmax(120px, 1fr));
+      gap:10px;
+      pointer-events:none;
+    }
+
+    .card{
+      background:linear-gradient(180deg, rgba(15,23,42,.82), rgba(15,23,42,.58));
+      border:1px solid rgba(255,255,255,.16);
+      border-radius:18px;
+      padding:10px 14px;
+      box-shadow:0 12px 34px rgba(0,0,0,.22);
+      backdrop-filter:blur(10px);
+    }
+
+    .card small{
+      display:block;
+      opacity:.78;
+      font-size:12px;
+      line-height:1.1;
+      margin-bottom:3px;
+    }
+
+    .value{
+      font-size:26px;
+      line-height:1;
+      font-weight:1000;
+      letter-spacing:.2px;
+    }
+
+    #scoreValue{ color:var(--gold); }
+    #statusValue{ color:var(--cyan); font-size:18px; line-height:1.25; }
+
+    .timeCard{
+      position:relative;
+      overflow:hidden;
+    }
+
+    .messageValue{
+      margin-top:8px;
+      min-height:30px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:6px 10px;
+      border-radius:14px;
+      font-size:15px;
+      line-height:1.15;
+      font-weight:700;
+      color:#e0f2fe;
+      background:rgba(2,6,23,.46);
+      border:1px solid rgba(255,255,255,.16);
+      text-align:center;
+      box-shadow:inset 0 2px 6px rgba(0,0,0,.20);
+      transition:background .16s ease, color .16s ease, transform .12s ease;
+    }
+
+    .messageValue.flash{
+      transform:scale(1.04);
+    }
+
+    .messageValue.good{
+      color:#bbf7d0;
+      background:rgba(22,163,74,.28);
+      border-color:rgba(187,247,208,.55);
+    }
+
+    .messageValue.bad{
+      color:#fecaca;
+      background:rgba(239,68,68,.26);
+      border-color:rgba(254,202,202,.55);
+    }
+
+    .messageValue.neutral{
+      color:#fde68a;
+      background:rgba(250,204,21,.20);
+      border-color:rgba(253,230,138,.50);
+    }
+
+    #startOverlay{
+      position:absolute;
+      inset:0;
+      z-index:50;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:22px;
+      background:
+        radial-gradient(circle at 70% 30%, rgba(250,204,21,.20), transparent 35%),
+        radial-gradient(circle at 20% 70%, rgba(56,189,248,.20), transparent 38%),
+        rgba(2,6,23,.78);
+      backdrop-filter:blur(8px);
+    }
+
+    .modal{
+      width:min(760px, 96vw);
+      border-radius:28px;
+      padding:26px;
+      background:linear-gradient(180deg, rgba(15,23,42,.96), rgba(30,41,59,.92));
+      border:1px solid rgba(255,255,255,.18);
+      box-shadow:0 24px 80px rgba(0,0,0,.45);
+    }
+
+    .modal h1{
+      margin:0 0 6px;
+      font-size:clamp(28px, 5vw, 52px);
+      line-height:1.08;
+      color:#fff7ed;
+      text-shadow:0 4px 0 rgba(0,0,0,.18);
+    }
+
+    .modal .subtitle{
+      margin:0 0 18px;
+      color:#bae6fd;
+      font-weight:700;
+      font-size:18px;
+    }
+
+    .rules{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      margin:18px 0;
+    }
+
+    .rule{
+      background:rgba(255,255,255,.07);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:18px;
+      padding:13px 14px;
+      line-height:1.55;
+    }
+
+    .rule b{ color:#fde68a; }
+
+    .systemCheck{
+      margin:16px 0 10px;
+      padding:14px;
+      border-radius:20px;
+      background:rgba(255,255,255,.07);
+      border:1px solid rgba(255,255,255,.14);
+    }
+
+    .systemTitle{
+      margin:0 0 10px;
+      font-size:17px;
+      font-weight:700;
+      color:#fde68a;
+    }
+
+    .checkRow{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:9px 10px;
+      border-radius:15px;
+      margin-top:8px;
+      background:rgba(15,23,42,.55);
+      border:1px solid rgba(255,255,255,.10);
+    }
+
+    .checkIcon{
+      width:26px;
+      height:26px;
+      border-radius:999px;
+      display:grid;
+      place-items:center;
+      flex:0 0 auto;
+      font-size:14px;
+      font-weight:700;
+      background:rgba(148,163,184,.28);
+      color:#e5e7eb;
+      box-shadow:inset 0 2px 5px rgba(0,0,0,.25);
+    }
+
+    .checkRow.loading .checkIcon{
+      color:transparent;
+      border:3px solid rgba(255,255,255,.28);
+      border-top-color:#38bdf8;
+      animation:spin .85s linear infinite;
+      background:transparent;
+      box-shadow:none;
+    }
+
+    .checkRow.success .checkIcon{
+      background:#22c55e;
+      color:white;
+    }
+
+    .checkRow.error .checkIcon{
+      background:#ef4444;
+      color:white;
+    }
+
+    .checkText{
+      flex:1;
+      min-width:0;
+    }
+
+    .checkText b{
+      display:block;
+      font-size:15px;
+      color:#fff7ed;
+      line-height:1.15;
+    }
+
+    .checkText span{
+      display:block;
+      margin-top:2px;
+      font-size:13px;
+      color:#cbd5e1;
+      line-height:1.3;
+    }
+
+    .checkRow.success .checkText span{ color:#bbf7d0; }
+    .checkRow.error .checkText span{ color:#fecaca; }
+
+    #startBtn.ready{
+      display:inline-flex !important;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(135deg, #22c55e, #16a34a);
+      box-shadow:0 14px 30px rgba(34,197,94,.30);
+      animation:readyPulse 1.25s ease-in-out infinite;
+    }
+
+    #prepareBtn:disabled{
+      cursor:not-allowed;
+      opacity:.75;
+      filter:saturate(.78);
+    }
+
+    @keyframes spin{
+      to{ transform:rotate(360deg); }
+    }
+
+    @keyframes readyPulse{
+      0%,100%{ transform:translateY(0); box-shadow:0 14px 30px rgba(34,197,94,.30); }
+      50%{ transform:translateY(-2px); box-shadow:0 18px 40px rgba(34,197,94,.45); }
+    }
+
+    .buttons{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:12px;
+    }
+
+    button{
+      appearance:none;
+      border:0;
+      cursor:pointer;
+      border-radius:999px;
+      padding:13px 18px;
+      color:white;
+      font-weight:1000;
+      font-size:16px;
+      background:linear-gradient(135deg, #f59e0b, #ef4444);
+      box-shadow:0 12px 28px rgba(239,68,68,.26);
+    }
+
+    button.secondary{
+      background:linear-gradient(135deg, #0ea5e9, #2563eb);
+      box-shadow:0 12px 28px rgba(37,99,235,.25);
+    }
+
+    button.ghost{
+      background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.18);
+      box-shadow:none;
+    }
+
+    #bottomHelp{
+      position:absolute;
+      left:50%;
+      bottom:14px;
+      transform:translateX(-50%);
+      z-index:30;
+      width:min(860px, calc(100vw - 24px));
+      text-align:center;
+      pointer-events:none;
+      background:rgba(2,6,23,.62);
+      border:1px solid rgba(255,255,255,.16);
+      border-radius:999px;
+      padding:10px 16px;
+      font-weight:800;
+      box-shadow:0 12px 34px rgba(0,0,0,.22);
+      backdrop-filter:blur(10px);
+    }
+
+    #toast{
+      display:none;
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%, -50%) scale(.9);
+      z-index:40;
+      min-width:220px;
+      text-align:center;
+      opacity:0;
+      pointer-events:none;
+      padding:18px 24px;
+      border-radius:24px;
+      background:rgba(2,6,23,.78);
+      border:1px solid rgba(255,255,255,.2);
+      font-size:34px;
+      font-weight:1000;
+      text-shadow:0 3px 12px rgba(0,0,0,.6);
+      transition:.18s ease;
+    }
+
+    .wordLabel2D{
+      position:absolute;
+      z-index:18;
+      transform:translate(-50%, -100%);
+      min-width:128px;
+      max-width:250px;
+      padding:10px 16px 12px;
+      border-radius:20px;
+      text-align:center;
+      pointer-events:none;
+      background:rgba(2,6,23,.92);
+      border:3px solid rgba(255,255,255,.94);
+      box-shadow:0 12px 28px rgba(0,0,0,.40), 0 0 20px rgba(255,255,255,.20);
+      backdrop-filter:blur(8px);
+      font-family:"Mitr","Sarabun","Noto Sans Thai",system-ui,sans-serif;
+    }
+
+    .wordLabel2D::after{
+      content:"";
+      position:absolute;
+      left:50%;
+      bottom:-15px;
+      transform:translateX(-50%);
+      width:0;
+      height:0;
+      border-left:12px solid transparent;
+      border-right:12px solid transparent;
+      border-top:15px solid rgba(255,255,255,.92);
+    }
+
+    .wordLabel2D.below{ transform:translate(-50%, 0); }
+    .wordLabel2D.below::after{ display:none; }
+    .wordLabel2D .type{
+      display:none;
+    }
+
+    .wordLabel2D .word{
+      display:block;
+      font-size:clamp(30px, 3vw, 46px);
+      line-height:1.05;
+      font-weight:700;
+      color:#fff7ed;
+      text-shadow:0 3px 0 rgba(0,0,0,.48), 0 0 12px rgba(0,0,0,.65);
+      white-space:nowrap;
+    }
+
+    .wordLabel2D.verb{ border-color:rgba(255,255,255,.94); }
+    .wordLabel2D.noun{ border-color:rgba(255,255,255,.94); }
+    .wordLabel2D.object{ border-color:rgba(255,255,255,.94); }
+
+    .wordLabel2D.fading{
+      opacity:0;
+      transform:translate(-50%, -100%) scale(.78);
+      transition:opacity .45s ease, transform .45s ease;
+    }
+
+    .wordLabel2D.below.fading{ transform:translate(-50%, 0) scale(.78); }
+
+    #toast.show{
+      opacity:1;
+      transform:translate(-50%, -50%) scale(1);
+    }
+
+    #toast.good{ color:var(--good); }
+    #toast.bad{ color:var(--bad); }
+
+    .questionOverlay{
+      position:absolute;
+      inset:0;
+      z-index:20;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      background:rgba(3,7,18,.72);
+      backdrop-filter:blur(7px);
+    }
+    .questionOverlay.show{ display:flex; }
+    .questionBox{
+      width:min(760px,92vw);
+      padding:30px 34px;
+      border:1px solid rgba(255,255,255,.2);
+      border-radius:24px;
+      background:linear-gradient(145deg,rgba(25,35,62,.96),rgba(10,16,31,.96));
+      box-shadow:0 24px 80px rgba(0,0,0,.45);
+      text-align:center;
+    }
+    .questionRound{
+      display:inline-block;
+      padding:6px 14px;
+      border-radius:999px;
+      background:rgba(56,189,248,.14);
+      color:#7dd3fc;
+      font-weight:600;
+      margin-bottom:10px;
+    }
+    .questionBox h2{ margin:4px 0 14px; font-size:clamp(24px,4vw,38px); }
+    .questionOverlayImage{ display:block; max-width:min(100%, 360px); max-height:180px; margin:0 auto 14px; border-radius:14px; object-fit:contain; border:1px solid rgba(255,255,255,.14); }
+    .questionOverlayText{
+      font-size:clamp(24px,4vw,42px);
+      line-height:1.45;
+      font-weight:600;
+      min-height:1.45em;
+    }
+    .questionHint{ opacity:.78; margin:18px 0 22px; font-size:18px; }
+    #beginRoundBtn{
+      border:0;
+      border-radius:14px;
+      padding:13px 24px;
+      font:inherit;
+      font-weight:600;
+      cursor:pointer;
+      background:#38bdf8;
+      color:#06111d;
+      box-shadow:0 8px 30px rgba(56,189,248,.25);
+    }
+    #beginRoundBtn:hover{ filter:brightness(1.08); }
+
+    #gameOver{
+      position:absolute;
+      inset:0;
+      z-index:45;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:22px;
+      background:rgba(2,6,23,.68);
+      backdrop-filter:blur(8px);
+    }
+
+    #gameOver.show{ display:flex; }
+
+    .resultBox{
+      width:min(560px, 92vw);
+      border-radius:30px;
+      padding:26px;
+      text-align:center;
+      background:linear-gradient(180deg, rgba(15,23,42,.98), rgba(51,65,85,.92));
+      border:1px solid rgba(255,255,255,.18);
+      box-shadow:0 24px 80px rgba(0,0,0,.45);
+    }
+
+    .resultBox h2{
+      margin:0 0 10px;
+      font-size:42px;
+      color:#fde68a;
+    }
+
+    .resultScore{
+      font-size:58px;
+      font-weight:1000;
+      color:var(--gold);
+      margin:4px 0 12px;
+    }
+
+    #powerGauge{
+      position:absolute;
+      z-index:34;
+      left:72%;
+      top:52%;
+      width:84px;
+      padding:10px 8px 12px;
+      border-radius:22px;
+      text-align:center;
+      pointer-events:none;
+      opacity:0;
+      transform:translate(20px, -50%) scale(.92);
+      transition:opacity .14s ease, transform .14s ease;
+      background:rgba(2,6,23,.76);
+      border:2px solid rgba(255,255,255,.28);
+      box-shadow:0 16px 36px rgba(0,0,0,.35), inset 0 2px 8px rgba(255,255,255,.10);
+      backdrop-filter:blur(10px);
+    }
+
+    #powerGauge.show{
+      opacity:1;
+      transform:translate(20px, -50%) scale(1);
+    }
+
+    .powerTitle{
+      font-size:14px;
+      font-weight:700;
+      color:#fff7ed;
+      margin-bottom:7px;
+      text-shadow:0 2px 6px rgba(0,0,0,.55);
+    }
+
+    .powerTrack{
+      position:relative;
+      width:30px;
+      height:190px;
+      margin:0 auto;
+      border-radius:999px;
+      overflow:hidden;
+      background:linear-gradient(180deg, rgba(15,23,42,.92), rgba(30,41,59,.92));
+      border:3px solid rgba(255,255,255,.78);
+      box-shadow:inset 0 5px 12px rgba(0,0,0,.55), 0 0 16px rgba(250,204,21,.20);
+    }
+
+    #powerFill{
+      position:absolute;
+      left:0;
+      right:0;
+      bottom:0;
+      height:0%;
+      border-radius:999px;
+      background:linear-gradient(0deg, #22c55e 0%, #facc15 55%, #ef4444 100%);
+      box-shadow:0 0 16px rgba(250,204,21,.72);
+      transition:height .05s linear;
+    }
+
+    .powerGlow{
+      position:absolute;
+      inset:5px 7px;
+      border-radius:999px;
+      background:linear-gradient(90deg, rgba(255,255,255,.32), transparent);
+      opacity:.75;
+    }
+
+    #powerPercent{
+      margin-top:7px;
+      font-size:17px;
+      font-weight:700;
+      color:#fde68a;
+      text-shadow:0 2px 8px rgba(0,0,0,.55);
+    }
+
+    #sideControls{
+      position:absolute;
+      z-index:35;
+      right:14px;
+      top:196px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    #sideControls button{
+      pointer-events:auto;
+      font-size:13px;
+      padding:10px 12px;
+      transition:transform .08s ease, box-shadow .12s ease, background .18s ease, border-color .18s ease, filter .18s ease;
+      user-select:none;
+    }
+
+    #sideControls button:active{
+      transform:translateY(3px) scale(.97);
+      box-shadow:inset 0 4px 10px rgba(0,0,0,.42), 0 2px 8px rgba(0,0,0,.18);
+      filter:brightness(.9);
+    }
+
+    #sideControls button.toggleBtn{
+      position:relative;
+      padding-left:36px;
+      background:rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.26);
+      color:#e5e7eb;
+      box-shadow:0 8px 18px rgba(0,0,0,.22);
+    }
+
+    #sideControls button.toggleBtn::before{
+      content:"";
+      position:absolute;
+      left:10px;
+      top:50%;
+      transform:translateY(-50%);
+      width:16px;
+      height:16px;
+      border-radius:50%;
+      background:#94a3b8;
+      box-shadow:inset 0 2px 4px rgba(0,0,0,.38);
+    }
+
+    #sideControls button.toggleBtn.on{
+      background:linear-gradient(180deg, rgba(34,197,94,.96), rgba(22,163,74,.90));
+      border-color:rgba(187,247,208,.95);
+      color:white;
+      box-shadow:inset 0 3px 7px rgba(255,255,255,.18), 0 8px 22px rgba(34,197,94,.32);
+    }
+
+    #sideControls button.toggleBtn.on::before{
+      background:#dcfce7;
+      box-shadow:0 0 0 3px rgba(255,255,255,.20), inset 0 2px 3px rgba(0,0,0,.25);
+    }
+
+    #sideControls button.toggleBtn.off{
+      background:linear-gradient(180deg, rgba(71,85,105,.88), rgba(30,41,59,.88));
+      border-color:rgba(148,163,184,.55);
+      color:#cbd5e1;
+      box-shadow:inset 0 4px 9px rgba(0,0,0,.34), 0 4px 12px rgba(0,0,0,.18);
+    }
+
+    #sideControls button.toggleBtn.off::before{
+      background:#64748b;
+    }
+
+    #sideControls button.toggleBtn.justPressed{
+      animation:buttonSink .16s ease;
+    }
+
+    @keyframes buttonSink{
+      0%{ transform:translateY(0) scale(1); }
+      50%{ transform:translateY(4px) scale(.96); box-shadow:inset 0 5px 12px rgba(0,0,0,.46); }
+      100%{ transform:translateY(0) scale(1); }
+    }
+
+    @media (max-width:760px){
+      #hud{
+        grid-template-columns:repeat(2, minmax(120px, 1fr));
+      }
+      .rules{
+        grid-template-columns:1fr;
+      }
+      #sideControls{ top:auto; bottom:66px; right:10px; }
+      #bottomHelp{
+        border-radius:18px;
+        font-size:13px;
+      }
+      .value{ font-size:22px; }
+      .zoneLabel{ top:154px; font-size:13px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <video id="video" playsinline></video>
+    <canvas id="threeCanvas"></canvas>
+    <canvas id="debugCanvas"></canvas>
+
+    <div id="wordZone" class="zone">
+      <div class="zoneLabel">โซนคำตอบ ฝั่งซ้ายของจอ<br>ตัวเลือกจะลงมาเป็นระลอก</div>
+    </div>
+
+    <div id="playerZone" class="zone">
+      <div class="zoneLabel">ผู้เล่นยืนครึ่งจอขวา<br>มือซ้ายถือคันธนูโค้ง</div>
+    </div>
+
+    <div id="hud">
+      <div class="card">
+        <small>คะแนน</small>
+        <div id="scoreValue" class="value">0</div>
+      </div>
+      <div class="card timeCard">
+        <small>คำถาม</small>
+        <div id="questionValue" class="questionValue">รอเริ่มเกม</div>
+        <small>เวลา</small>
+        <div id="timeValue" class="value">00:00</div>
+        <div id="messageValue" class="messageValue">ข้อความจะแสดงตรงนี้</div>
+      </div>
+      <div class="card">
+        <small>ข้อที่</small>
+        <div id="roundValue" class="value">0/0</div>
+        <small>เวลาข้อนี้</small>
+        <div id="roundTimer" class="value">--</div>
+      </div>
+      <div class="card">
+        <small>สถานะมือ</small>
+        <div id="statusValue" class="value">รอเริ่มเกม</div>
+      </div>
+    </div>
+
+    <div id="powerGauge" aria-hidden="true">
+      <div class="powerTitle">แรงยิง</div>
+      <div class="powerTrack">
+        <div id="powerFill"></div>
+        <div class="powerGlow"></div>
+      </div>
+      <div id="powerPercent">0%</div>
+    </div>
+
+    <div id="sideControls">
+      <button id="swapBtn" class="ghost toggleBtn off" type="button" aria-pressed="false">สลับมือ: ปิด</button>
+      <button id="debugBtn" class="ghost toggleBtn on" type="button" aria-pressed="true">จุดมือ: เปิด</button>
+      <button id="soundBtn" class="ghost toggleBtn on" type="button" aria-pressed="true">เสียง: เปิด</button>
+      <button id="resetBtn" class="secondary" type="button">เริ่มใหม่</button>
+    </div>
+
+    <div id="bottomHelp">
+      วิธีเล่น: ยืนครึ่งจอขวาเท่านั้น → กำมือขวาใกล้คันธนู → ลากเข้าหาตัวเพื่อชาร์จแรงยิงแบบค่อย ๆ เพิ่มตามระยะดึง → ดูแถบชาร์จแนวตั้ง → แบมือขวาเพื่อปล่อยลูกธนู ลูกธนูแรงน้อยจะย้อยและปักขอบจอ
+    </div>
+
+    <div id="toast"></div>
+
+    <div id="questionOverlay" class="questionOverlay" aria-hidden="true">
+      <div class="questionBox">
+        <div class="questionRound" id="questionRound">ข้อที่ 1</div>
+        <h2>คำถาม</h2>
+        <div id="questionOverlayText" class="questionOverlayText">กำลังเตรียมคำถาม...</div>
+        <img id="questionOverlayImage" class="questionOverlayImage" alt="รูปประกอบคำถาม" style="display:none">
+        <p class="questionHint">อ่านคำถามให้เรียบร้อย แล้วกด “เริ่มยิงคำตอบ”</p>
+        <button id="beginRoundBtn" type="button">🎯 เริ่มยิงคำตอบ</button>
+      </div>
+    </div>
+
+    <div id="gameOver">
+      <div class="resultBox">
+        <h2>จบเกม!</h2>
+        <p id="gameOverSummary">เล่นครบทุกข้อแล้ว</p>
+        <div id="finalScore" class="resultScore">0</div>
+        <div class="buttons" style="justify-content:center">
+          <button id="playAgainBtn" type="button">เล่นอีกครั้ง</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="startOverlay">
+      <div class="modal">
+        <h1>🏹 EduGame AR ยิงธนูตอบคำถาม</h1>
+        <p class="subtitle">เกมตอบคำถามด้วยกล้องและการ Track มือซ้าย/ขวา</p>
+
+        <div class="rules">
+          <div class="rule">
+            <b>ตำแหน่งผู้เล่น</b><br>
+            ยืนทางขวาของจอในพื้นที่ครึ่งจอ คันธนูจะถูกล็อกให้อยู่ในเขตผู้เล่น
+          </div>
+          <div class="rule">
+            <b>การยิง</b><br>
+            กำมือขวาที่คันธนูแล้วลากเข้าหาตัวเพื่อสร้างลูกธนูและชาร์จแรง
+          </div>
+          <div class="rule">
+            <b>การปล่อยธนู</b><br>
+            แบมือขวา ลูกธนูจะพุ่งตามแรงดึงและทิศที่หน้าคันธนูหันไป
+          </div>
+          <div class="rule">
+            <b>คะแนน</b><br>
+            ตัวเลือกทุกข้อจะลงมาเป็นระลอกต่อเนื่องเหมือนเกมฟันผลไม้ | ยิงถูก +10 | ยิงผิด -5 | ข้อละ 15 วินาที ยิงได้ไม่จำกัดจนหมดเวลา
+          </div>
+        </div>
+
+        <div class="systemCheck" id="systemCheck">
+          <p class="systemTitle">ตรวจสอบระบบก่อนเริ่มเกม</p>
+
+          <div class="checkRow pending" id="cameraCheck">
+            <div class="checkIcon">•</div>
+            <div class="checkText">
+              <b>เปิดกล้อง</b>
+              <span id="cameraCheckText">รอกดปุ่มตรวจสอบและอนุญาตกล้อง</span>
+            </div>
+          </div>
+
+          <div class="checkRow pending" id="aiCheck">
+            <div class="checkIcon">•</div>
+            <div class="checkText">
+              <b>โหลด AI Track มือ</b>
+              <span id="aiCheckText">รอโหลดระบบตรวจจับมือซ้าย/ขวา</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="buttons">
+          <button id="prepareBtn" type="button">ตรวจสอบกล้องและโหลด AI Track</button>
+          <button id="pointerBtn" class="secondary" type="button">🖱️ เล่นด้วยเมาส์/สัมผัส (ไม่ใช้กล้อง)</button>
+          <button id="startBtn" type="button" style="display:none" disabled>เริ่มเกม</button>
+          <button id="howBtn" class="secondary" type="button">เคล็ดลับการเล่น</button>
+        </div>
+        <p style="opacity:.78; margin:14px 0 0; line-height:1.55">
+          หมายเหตุ: ต้องอนุญาตกล้อง และควรเปิดไฟล์ผ่าน HTTPS หรือ localhost เพื่อให้เบราว์เซอร์เข้าถึงกล้องได้
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script type="text/plain" id="mainCode">
+    // ==========================
+    // CONFIG
+    // ==========================
+    let externalEduGameQuestions = []
+    let externalQuestionIndex = 0;
+    let currentRoundQuestion = "";
+    let pendingRoundItems = null;
+    const TOTAL_ROUNDS = 15;
+    const FALL_SPEED_MIN = 105;       // px/sec - ความเร็วตกต่ำสุดของเป้า (เดิมตกช้าที่ 58)
+    const FALL_SPEED_MAX = 150;       // px/sec - ความเร็วตกสูงสุดของเป้า
+    const WAVE_INTERVAL = 1.5;        // วินาที - ปล่อยตัวเลือกลงมาเป็นระลอกทุกกี่วินาที
+    const ROUND_SECONDS = 15;         // วินาที - เวลาต่อข้อ (ยิงได้ไม่จำกัดจนหมดเวลา แล้วจึงไปข้อต่อไป)
+    const DROP_ZONE_RATIO = .46;      // ตัวเลือกลงมาในส่วนซ้ายของจอ (คันธนูอยู่ครึ่งขวา)
+    const ARROW_BASE_SPEED = 330;     // px/sec - ปรับให้ลูกธนูลอยช้าลง
+    const ARROW_EXTRA_SPEED = 620;    // px/sec - ความเร็วเพิ่มตามแรงดึง
+    const ARROW_GRAVITY = 520;        // px/sec² - ฟิสิกส์ย้อยลงของลูกธนู
+    const ARROW_LOW_POWER_DROP = 420; // px/sec² - แรงน้อยจะย้อยลงมากขึ้น
+    const ARROW_EDGE_MARGIN = 18;     // ระยะปักขอบจอ
+    const STICK_FADE_DELAY = 1000;    // ms - ปักแล้วรอ 1 วิจึงเฟด
+    const MAX_PULL = 280;             // px - ระยะดึงสูงสุด
+    const PULL_DEAD_ZONE = 28;        // px - ดึงน้อยกว่านี้ยังไม่เพิ่มแรง
+    const CHARGE_RISE_SPEED = 0.95;   // ต่อวินาที - ยิ่งน้อยยิ่งชาร์จช้า
+    const CHARGE_FALL_SPEED = 1.35;   // ต่อวินาที - ความเร็วตอนแรงลดลงเมื่อผ่อนมือ
+    const HIT_RADIUS = 52;            // px
+    const MIN_RELEASE_STRENGTH = 0.12;
+    const MIRROR_VIDEO = true;
+
+    window.WORD_BANK = [
+      { word:"วิ่ง", type:"กริยา", emoji:"🍎" },
+      { word:"กิน", type:"กริยา", emoji:"🍊" },
+      { word:"อ่าน", type:"กริยา", emoji:"🍐" },
+      { word:"เขียน", type:"กริยา", emoji:"🍑" },
+      { word:"นอน", type:"กริยา", emoji:"🥝" },
+      { word:"เดิน", type:"กริยา", emoji:"🍒" },
+      { word:"กระโดด", type:"กริยา", emoji:"🍓" },
+      { word:"ร้อง", type:"กริยา", emoji:"🍇" },
+      { word:"ครู", type:"คำนาม", emoji:"🍋" },
+      { word:"บ้าน", type:"คำนาม", emoji:"🍉" },
+      { word:"โรงเรียน", type:"คำนาม", emoji:"🥭" },
+      { word:"แมว", type:"คำนาม", emoji:"🍍" },
+      { word:"ข้าว", type:"กรรม", emoji:"🍅" },
+      { word:"หนังสือ", type:"กรรม", emoji:"🍈" },
+      { word:"น้ำ", type:"กรรม", emoji:"🍏" },
+      { word:"ลูกบอล", type:"กรรม", emoji:"🥥" }
+    ];
+
+    // ==========================
+    // DOM
+    // ==========================
+    const video = document.getElementById("video");
+    const threeCanvas = document.getElementById("threeCanvas");
+    const debugCanvas = document.getElementById("debugCanvas");
+    const debugCtx = debugCanvas.getContext("2d");
+
+    const startOverlay = document.getElementById("startOverlay");
+    const prepareBtn = document.getElementById("prepareBtn");
+    const startBtn = document.getElementById("startBtn");
+    const howBtn = document.getElementById("howBtn");
+    const cameraCheck = document.getElementById("cameraCheck");
+    const aiCheck = document.getElementById("aiCheck");
+    const cameraCheckText = document.getElementById("cameraCheckText");
+    const aiCheckText = document.getElementById("aiCheckText");
+    const swapBtn = document.getElementById("swapBtn");
+    const debugBtn = document.getElementById("debugBtn");
+    const soundBtn = document.getElementById("soundBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const playAgainBtn = document.getElementById("playAgainBtn");
+    const gameOver = document.getElementById("gameOver");
+
+    const scoreValue = document.getElementById("scoreValue");
+    const timeValue = document.getElementById("timeValue");
+    const roundValue = document.getElementById("roundValue");
+    const statusValue = document.getElementById("statusValue");
+    const toast = document.getElementById("toast");
+    const messageValue = document.getElementById("messageValue");
+    const finalScore = document.getElementById("finalScore");
+    const powerGauge = document.getElementById("powerGauge");
+    const powerFill = document.getElementById("powerFill");
+    const powerPercent = document.getElementById("powerPercent");
+
+    // ==========================
+    // GAME STATE
+    // ==========================
+    let renderer, scene, camera;
+    let bowGroup, bowBody, bowString, chargeBar;
+    let activeDrawArrow = null;
+    let activeFruits = [];
+    let fruits = [];
+    let roundEnding = false;
+    let roundItems = [];
+    let streaming = false, roundClock = 0, waveClock = 0;
+    let arrows = [];
+    let particles = [];
+
+    let W = window.innerWidth;
+    let H = window.innerHeight;
+
+    let gameRunning = false;
+    let cameraStarted = false;
+    let aiTrackReady = false;
+    let arSystemReady = false;
+    let preparingSystem = false;
+    let mediaHands = null;
+    let cameraHandle = null, handTracker = null;
+    let aiReadyResolver = null;
+    let aiReadyTimer = null;
+    let debugVisible = true;
+    let swapHands = false;
+    let soundEnabled = true;
+    let audioCtx = null;
+    let chargeOsc = null;
+    let chargeGain = null;
+
+    let score = 0;
+    let completedRounds = 0;
+    let startTime = 0;
+    let elapsedMs = 0;
+    let lastFrame = performance.now();
+
+    let isDrawing = false;
+    let previousRightGesture = "none";
+    let drawStrength = 0;
+    let bowFront = new THREE.Vector2(-1, 0);
+    let bowCenter = new THREE.Vector2(W * 0.82, H * 0.52);
+    let drawHandPoint = null;
+
+    const trackedHands = {
+      Left: null,
+      Right: null
+    };
+
+    // ==========================
+    // POINTER MODE (เมาส์ / นิ้วสัมผัส) — เล่นได้โดยไม่ต้องใช้กล้อง
+    // กดค้างแล้วลากถอยหลังเหมือนดึงสายธนู ปล่อยเพื่อยิง (ทิศยิงตรงข้ามกับทิศที่ลาก)
+    // ==========================
+    let pointerMode = false;
+    const ptr = { x: 0, y: 0, down: false, sx: 0, sy: 0, seen: false };
+    let ptrBowY = null;
+
+    function usePointerMode(){
+      pointerMode = true;
+      if(handTracker){ handTracker.stop(); handTracker = null; }
+      if(cameraHandle){ cameraHandle.stop(); cameraHandle = null; }
+      cameraStarted = true;
+      aiTrackReady = true;
+      arSystemReady = true;
+      preparingSystem = false;
+      video.style.display = "none";
+      setCheckState(cameraCheck, cameraCheckText, "success", "ใช้โหมดเมาส์/สัมผัส (ไม่ใช้กล้อง)");
+      setCheckState(aiCheck, aiCheckText, "success", "ไม่ต้องใช้ AI Track ในโหมดนี้");
+      const pb = document.getElementById("pointerBtn");
+      if(pb) pb.style.display = "none";
+      if(statusValue) statusValue.textContent = "โหมดเมาส์/สัมผัส";
+      const help = document.getElementById("bottomHelp");
+      if(help) help.textContent = "วิธีเล่น (เมาส์/สัมผัส): กดค้างที่หน้าจอ แล้วลากถอยหลังเพื่อดึงสายธนู (ยิ่งลากไกลยิ่งแรง) → ปล่อยเพื่อยิง • ธนูจะพุ่งไปทางตรงข้ามกับที่ลาก";
+      updateStartReadyUI();
+      showToast("เปิดโหมดเมาส์/สัมผัสแล้ว", "neutral");
+    }
+
+    function synthPointerHands(){
+      // สร้างข้อมูล "มือซ้าย/ขวา" จำลองจากเมาส์ เพื่อใช้ตรรกะเดิมของเกมทั้งหมด
+      const bowX = Math.max(W * .5 + 118, Math.min(W * .7, W - 24 - MAX_PULL - 12));
+      const wantY = ptr.seen && !ptr.down ? ptr.y : (ptrBowY == null ? H * .52 : ptrBowY);
+      ptrBowY = THREE.MathUtils.clamp(wantY, 112, H - 82);
+      const left = {
+        label: "Left", rawLabel: "Left", landmarks: null, gesture: "open",
+        center: { x: bowX, y: ptrBowY }, points: []
+      };
+      // เวกเตอร์ "หน้าคันธนู" = ตรงข้ามกับทิศที่ลาก
+      let fx = -1, fy = 0, rx = bowX, ry = ptrBowY;
+      if(ptr.down){
+        const dx = ptr.x - ptr.sx, dy = ptr.y - ptr.sy;
+        const len = Math.hypot(dx, dy);
+        if(len > 4){ fx = -dx / len; fy = -dy / len; }
+        rx = bowX + dx; ry = ptrBowY + dy;
+      }
+      const axis = { x: fy, y: -fx };
+      left.points[5]  = { x: bowX + axis.x * 30, y: ptrBowY + axis.y * 30 };
+      left.points[17] = { x: bowX - axis.x * 30, y: ptrBowY - axis.y * 30 };
+      trackedHands.Left = left;
+      trackedHands.Right = {
+        label: "Right", rawLabel: "Right", landmarks: null, points: [],
+        gesture: ptr.down ? "fist" : "open", center: { x: rx, y: ry }
+      };
+    }
+
+    function setupPointerEvents(){
+      const area = document.getElementById("app");
+      const ignore = (e) => e.target.closest && e.target.closest("button, .questionOverlay, #startOverlay, #gameOver, #sideControls");
+      area.addEventListener("pointerdown", (e) => {
+        if(!pointerMode || ignore(e)) return;
+        ptr.down = true; ptr.seen = true;
+        ptr.x = ptr.sx = e.clientX; ptr.y = ptr.sy = e.clientY;
+        try{ area.setPointerCapture(e.pointerId); }catch(_){}
+        e.preventDefault();
+      });
+      area.addEventListener("pointermove", (e) => {
+        if(!pointerMode) return;
+        ptr.seen = true; ptr.x = e.clientX; ptr.y = e.clientY;
+      });
+      const up = () => { ptr.down = false; };
+      area.addEventListener("pointerup", up);
+      area.addEventListener("pointercancel", up);
+      area.style.touchAction = "none";
+    }
+
+    // ==========================
+    // SOUND EFFECTS - Web Audio API
+    // ==========================
+    function initAudio(){
+      if(!soundEnabled) return null;
+      if(!audioCtx){
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if(!AudioContextClass) return null;
+        audioCtx = new AudioContextClass();
+      }
+      if(audioCtx.state === "suspended") audioCtx.resume();
+      return audioCtx;
+    }
+
+    function tone(freq = 440, duration = .12, type = "sine", volume = .12, delay = 0){
+      if(!soundEnabled) return;
+      const ctx = initAudio();
+      if(!ctx) return;
+      const t = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, volume), t + .015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + duration + .04);
+    }
+
+    function slideTone(startFreq, endFreq, duration = .18, type = "sine", volume = .12, delay = 0){
+      if(!soundEnabled) return;
+      const ctx = initAudio();
+      if(!ctx) return;
+      const t = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(startFreq, t);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), t + duration);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, volume), t + .012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + duration + .05);
+    }
+
+    function noiseBurst(duration = .16, volume = .13, filterFreq = 1000, delay = 0){
+      if(!soundEnabled) return;
+      const ctx = initAudio();
+      if(!ctx) return;
+      const sampleRate = ctx.sampleRate;
+      const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(sampleRate * duration)), sampleRate);
+      const data = buffer.getChannelData(0);
+      for(let i=0; i<data.length; i++){
+        const fade = 1 - (i / data.length);
+        data[i] = (Math.random() * 2 - 1) * fade;
+      }
+      const src = ctx.createBufferSource();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      filter.type = "bandpass";
+      filter.frequency.value = filterFreq;
+      filter.Q.value = 1.4;
+      const t = ctx.currentTime + delay;
+      gain.gain.setValueAtTime(volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+      src.buffer = buffer;
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      src.start(t);
+      src.stop(t + duration + .03);
+    }
+
+    function playSfx(name, value = 0){
+      if(!soundEnabled) return;
+      switch(name){
+        case "button":
+          tone(520, .055, "triangle", .08); tone(740, .055, "triangle", .055, .04); break;
+        case "toggleOn":
+          tone(520, .08, "sine", .09); tone(780, .09, "sine", .09, .07); break;
+        case "toggleOff":
+          slideTone(520, 230, .14, "triangle", .08); break;
+        case "cameraLoading":
+          tone(330, .08, "sine", .055); tone(440, .08, "sine", .045, .08); break;
+        case "ready":
+          tone(523, .10, "sine", .085); tone(659, .10, "sine", .085, .09); tone(784, .16, "sine", .09, .18); break;
+        case "error":
+          tone(220, .12, "sawtooth", .08); tone(160, .18, "sawtooth", .08, .11); break;
+        case "start":
+          tone(392, .08, "triangle", .08); tone(523, .08, "triangle", .08, .08); tone(659, .14, "triangle", .08, .16); break;
+        case "drawStart":
+          slideTone(220, 330, .18, "sine", .065); break;
+        case "release":
+          noiseBurst(.08, .09, 2600); slideTone(720 + value * 160, 320 + value * 70, .16, "triangle", .10, .01); break;
+        case "lowPower":
+          tone(180, .10, "triangle", .08); break;
+        case "hitGood":
+          noiseBurst(.10, .08, 1800); tone(660, .10, "sine", .10); tone(880, .13, "sine", .10, .09); tone(1320, .15, "sine", .085, .19); break;
+        case "hitBad":
+          noiseBurst(.14, .09, 520); tone(260, .14, "square", .075); tone(190, .16, "square", .065, .11); break;
+        case "stick":
+          noiseBurst(.08, .12, 900); tone(120, .08, "triangle", .075); break;
+        case "miss":
+          slideTone(360, 150, .22, "sine", .07); break;
+        case "nextRound":
+          tone(600, .07, "triangle", .055); tone(760, .08, "triangle", .055, .07); break;
+        case "gameOver":
+          tone(523, .12, "sine", .09); tone(659, .12, "sine", .09, .12); tone(784, .12, "sine", .09, .24); tone(1046, .22, "sine", .09, .38); break;
+      }
+    }
+
+    function startChargeLoop(){
+      if(!soundEnabled || chargeOsc || !gameRunning) return;
+      const ctx = initAudio();
+      if(!ctx) return;
+      chargeOsc = ctx.createOscillator();
+      chargeGain = ctx.createGain();
+      chargeOsc.type = "sine";
+      chargeOsc.frequency.setValueAtTime(180, ctx.currentTime);
+      chargeGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      chargeOsc.connect(chargeGain);
+      chargeGain.connect(ctx.destination);
+      chargeOsc.start();
+    }
+
+    function updateChargeLoop(strength){
+      if(!soundEnabled || !chargeOsc || !chargeGain || !audioCtx) return;
+      const t = audioCtx.currentTime;
+      chargeOsc.frequency.setTargetAtTime(170 + strength * 520, t, .035);
+      chargeGain.gain.setTargetAtTime(0.018 + strength * 0.035, t, .05);
+    }
+
+    function stopChargeLoop(){
+      if(!chargeOsc || !chargeGain || !audioCtx) return;
+      const osc = chargeOsc;
+      const gain = chargeGain;
+      const t = audioCtx.currentTime;
+      gain.gain.setTargetAtTime(0.0001, t, .035);
+      try{ osc.stop(t + .12); }catch(e){}
+      chargeOsc = null;
+      chargeGain = null;
+    }
+
+    // ==========================
+    // THREE SETUP
+    // ==========================
+    function initThree(){
+      renderer = new THREE.WebGLRenderer({
+        canvas: threeCanvas,
+        alpha: true,
+        antialias: true
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(W, H);
+
+      scene = new THREE.Scene();
+      camera = new THREE.OrthographicCamera(0, W, H, 0, -1000, 1000);
+      camera.position.z = 500;
+
+      const ambient = new THREE.AmbientLight(0xffffff, 1.15);
+      scene.add(ambient);
+
+      const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+      dir.position.set(-300, -500, 800);
+      scene.add(dir);
+
+      const fill = new THREE.PointLight(0xfde68a, 1.2, 1400);
+      fill.position.set(W * .75, H * .25, 500);
+      scene.add(fill);
+
+      bowGroup = new THREE.Group();
+      scene.add(bowGroup);
+
+      createBow();
+      createChargeBar();
+    }
+
+    function createBow(){
+      // คันธนูทรงใหม่: ก้านอ้าออก โค้งแบบ S คล้ายธนูจริง
+      const limbMat = new THREE.MeshStandardMaterial({
+        color: 0x31413a,
+        roughness: .50,
+        metalness: .16
+      });
+
+      const edgeMat = new THREE.MeshStandardMaterial({
+        color: 0xb45309,
+        roughness: .44,
+        metalness: .12
+      });
+
+      const gripMat = new THREE.MeshStandardMaterial({
+        color: 0x0f172a,
+        roughness: .36,
+        metalness: .24
+      });
+
+      const gold = new THREE.MeshStandardMaterial({
+        color: 0xfacc15,
+        roughness: .26,
+        metalness: .42
+      });
+
+      const stringMat = new THREE.MeshStandardMaterial({
+        color: 0xe5e7eb,
+        roughness: .25,
+        metalness: .10
+      });
+
+      bowBody = new THREE.Group();
+
+      function makeTube(points, radius, material, tubularSegments = 72){
+        const curve = new THREE.CatmullRomCurve3(
+          points.map(p => new THREE.Vector3(p[0], p[1], p[2] || 0))
+        );
+        const geometry = new THREE.TubeGeometry(curve, tubularSegments, radius, 16, false);
+        return new THREE.Mesh(geometry, material);
+      }
+
+      // เส้นก้านหลัก: กลางคันยื่นออกซ้าย ปลายก้านอ้าไปทางสายด้านขวา
+      const upperMain = [
+        [-22, -16, 0],
+        [-46, -42, 0],
+        [-72, -78, 0],
+        [-62, -112, 0],
+        [-12, -136, 0],
+        [58, -152, 0]
+      ];
+
+      const lowerMain = [
+        [-22, 16, 0],
+        [-46, 42, 0],
+        [-72, 78, 0],
+        [-62, 112, 0],
+        [-12, 136, 0],
+        [58, 152, 0]
+      ];
+
+      const upperLimb = makeTube(upperMain, 8.5, limbMat);
+      const lowerLimb = makeTube(lowerMain, 8.5, limbMat);
+      bowBody.add(upperLimb);
+      bowBody.add(lowerLimb);
+
+      // สันสีไม้/ทองบาง ๆ บนก้าน ทำให้เห็นความโค้งและความอ้า
+      const upperEdge = makeTube([
+        [-19, -18, 9],
+        [-43, -47, 9],
+        [-64, -82, 9],
+        [-51, -108, 9],
+        [-8, -128, 9],
+        [51, -144, 9]
+      ], 2.1, edgeMat, 64);
+
+      const lowerEdge = makeTube([
+        [-19, 18, 9],
+        [-43, 47, 9],
+        [-64, 82, 9],
+        [-51, 108, 9],
+        [-8, 128, 9],
+        [51, 144, 9]
+      ], 2.1, edgeMat, 64);
+
+      bowBody.add(upperEdge);
+      bowBody.add(lowerEdge);
+
+      // ด้ามจับตรงกลาง
+      const grip = new THREE.Mesh(new THREE.CapsuleGeometry(15, 76, 8, 22), gripMat);
+      grip.position.set(-24, 0, 8);
+      grip.rotation.z = .02;
+      bowBody.add(grip);
+
+      const gripWrap1 = new THREE.Mesh(new THREE.CylinderGeometry(17, 17, 7, 20), gold);
+      gripWrap1.position.set(-24, -24, 9);
+      gripWrap1.rotation.x = Math.PI / 2;
+      bowBody.add(gripWrap1);
+
+      const gripWrap2 = gripWrap1.clone();
+      gripWrap2.position.y = 24;
+      bowBody.add(gripWrap2);
+
+      const arrowRest = new THREE.Mesh(new THREE.BoxGeometry(32, 7, 8), gold);
+      arrowRest.position.set(-3, 0, 18);
+      bowBody.add(arrowRest);
+
+      // ปลายคันธนูเล็ก ๆ โค้งอ้าออก
+      const topTip = new THREE.Mesh(new THREE.CapsuleGeometry(5, 24, 5, 14), gold);
+      topTip.position.set(62, -155, 4);
+      topTip.rotation.z = -.62;
+      bowBody.add(topTip);
+
+      const bottomTip = new THREE.Mesh(new THREE.CapsuleGeometry(5, 24, 5, 14), gold);
+      bottomTip.position.set(62, 155, 4);
+      bottomTip.rotation.z = .62;
+      bowBody.add(bottomTip);
+
+      // จุดยึดสาย
+      const topNock = new THREE.Mesh(new THREE.SphereGeometry(7, 18, 18), stringMat);
+      topNock.position.set(58, -152, 11);
+      bowBody.add(topNock);
+
+      const bottomNock = new THREE.Mesh(new THREE.SphereGeometry(7, 18, 18), stringMat);
+      bottomNock.position.set(58, 152, 11);
+      bowBody.add(bottomNock);
+
+      // สายธนูพักอยู่ฝั่งขวาของคันธนู
+      bowString = makeLine([
+        new THREE.Vector3(58, -152, 14),
+        new THREE.Vector3(58, 0, 14),
+        new THREE.Vector3(58, 152, 14)
+      ], 0xf8fafc);
+
+      bowGroup.add(bowBody);
+      bowGroup.add(bowString);
+      bowGroup.position.set(bowCenter.x, bowCenter.y, 30);
+      bowGroup.scale.set(.88, .88, .88);
+    }
+
+
+    function createChargeBar(){
+      chargeBar = new THREE.Group();
+
+      const bgMat = new THREE.MeshBasicMaterial({ color:0x0f172a, transparent:true, opacity:.72 });
+      const fillMat = new THREE.MeshBasicMaterial({ color:0xfacc15, transparent:true, opacity:.92 });
+
+      const bg = new THREE.Mesh(new THREE.PlaneGeometry(130, 16), bgMat);
+      bg.name = "bg";
+      bg.position.set(-18, 176, 0);
+      chargeBar.add(bg);
+
+      const fill = new THREE.Mesh(new THREE.PlaneGeometry(126, 10), fillMat);
+      fill.name = "fill";
+      fill.position.set(-81, 176, 1);
+      fill.geometry.translate(.5, 0, 0);
+      fill.scale.x = 0.001;
+      chargeBar.add(fill);
+
+      bowGroup.add(chargeBar);
+    }
+
+    function makeLine(points, color){
+      const geom = new THREE.BufferGeometry().setFromPoints(points);
+      const mat = new THREE.LineBasicMaterial({
+        color,
+        linewidth: 4,
+        transparent: true,
+        opacity: .96
+      });
+      return new THREE.Line(geom, mat);
+    }
+
+    function updateBowString(pullPoint){
+      bowGroup.remove(bowString);
+
+      let localPull;
+      if(pullPoint){
+        // แปลงตำแหน่งมือจากพิกัดจอให้เป็นพิกัดภายในคันธนู
+        // ทำให้สายดึงตามมือได้แม้คันธนูหมุนอยู่
+        localPull = bowGroup.worldToLocal(new THREE.Vector3(pullPoint.x, pullPoint.y, 14));
+      }else{
+        localPull = new THREE.Vector3(58, 0, 14);
+      }
+
+      // จำกัดระยะดึงสาย: ให้สายเริ่มจากฝั่งขวาและถูกดึงเข้าหาตัวเหมือนธนูจริง
+      localPull.x = THREE.MathUtils.clamp(localPull.x, 42, 285);
+      localPull.y = THREE.MathUtils.clamp(localPull.y, -105, 105);
+      localPull.z = 14;
+
+      bowString = makeLine([
+        new THREE.Vector3(58, -152, 14),
+        localPull,
+        new THREE.Vector3(58, 152, 14)
+      ], isDrawing ? 0xfef3c7 : 0xf8fafc);
+      bowString.renderOrder = 999;
+      bowGroup.add(bowString);
+    }
+
+    function updatePowerGauge(){
+      if(!powerGauge || !powerFill || !powerPercent) return;
+
+      const percent = Math.round(drawStrength * 100);
+      powerFill.style.height = `${percent}%`;
+      powerPercent.textContent = `${percent}%`;
+
+      if(gameRunning && isDrawing){
+        powerGauge.classList.add("show");
+        powerGauge.setAttribute("aria-hidden", "false");
+
+        // ให้แถบชาร์จลอยใกล้คันธนู แต่ไม่หลุดจอ
+        const x = THREE.MathUtils.clamp(bowCenter.x + 82, 92, W - 120);
+        const y = THREE.MathUtils.clamp(bowCenter.y, 170, H - 140);
+        powerGauge.style.left = `${x}px`;
+        powerGauge.style.top = `${y}px`;
+      }else{
+        powerGauge.classList.remove("show");
+        powerGauge.setAttribute("aria-hidden", "true");
+      }
+    }
+
+    function updateChargeVisual(){
+      const fill = chargeBar.getObjectByName("fill");
+      if(fill){
+        fill.scale.x = Math.max(.001, drawStrength);
+        fill.material.color.set(drawStrength > .75 ? 0xef4444 : drawStrength > .4 ? 0xfacc15 : 0x34d399);
+      }
+      chargeBar.visible = gameRunning && !!trackedHands.Left;
+      updatePowerGauge();
+    }
+
+    function createArrowMesh(){
+      const group = new THREE.Group();
+      const shaftMat = new THREE.MeshStandardMaterial({ color:0xf8fafc, roughness:.28, metalness:.18 });
+      const headMat = new THREE.MeshStandardMaterial({ color:0x94a3b8, roughness:.22, metalness:.55 });
+      const featherMat = new THREE.MeshStandardMaterial({ color:0xef4444, roughness:.42, metalness:.05 });
+
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 92, 12), shaftMat);
+      shaft.rotation.z = Math.PI / 2;
+      shaft.position.x = 0;
+      group.add(shaft);
+
+      const head = new THREE.Mesh(new THREE.ConeGeometry(12, 30, 16), headMat);
+      head.rotation.z = -Math.PI / 2;
+      head.position.x = 58;
+      group.add(head);
+
+      const feather1 = new THREE.Mesh(new THREE.ConeGeometry(8, 20, 3), featherMat);
+      feather1.rotation.z = Math.PI / 2;
+      feather1.rotation.y = Math.PI / 2;
+      feather1.position.x = -52;
+      feather1.position.y = -8;
+      group.add(feather1);
+
+      const feather2 = feather1.clone();
+      feather2.position.y = 8;
+      group.add(feather2);
+
+      group.scale.set(1.05,1.05,1.05);
+      return group;
+    }
+
+    // ==========================
+    // 2D WORD LABELS
+    // ==========================
+    function createWordLabel2D(item){
+      const label = document.createElement("div");
+      const typeClass = item.correct === true ? "verb" : item.type === "คำนาม" ? "noun" : "object";
+      label.className = `wordLabel2D ${typeClass}`;
+      // แสดงเฉพาะคำ ไม่แสดงชนิดคำ เพื่อไม่เฉลยคำตอบให้ผู้เล่น
+      if(!item.word) return null; // ตัวเลือกที่เป็นรูปอย่างเดียว ไม่ต้องมีป้ายข้อความ
+      if(item.image_url) label.classList.add("below"); // มีรูปด้วย -> ข้อความอยู่ใต้ภาพ
+      const wordEl = document.createElement("span");
+      wordEl.className = "word";
+      wordEl.textContent = item.word;
+      label.appendChild(wordEl);
+      document.getElementById("app").appendChild(label);
+      return label;
+    }
+
+    function updateWordLabel2D(fruit){
+      if(!fruit || !fruit.labelEl) return;
+      const x = fruit.pos.x;
+      const below = fruit.item && fruit.item.image_url;
+      const y = below ? fruit.pos.y + 44 * (fruit.scale || 1) + 22 : fruit.pos.y - 58;
+      fruit.labelEl.style.left = `${x}px`;
+      fruit.labelEl.style.top = `${y}px`;
+    }
+
+    function removeWordLabel2D(fruit){
+      if(fruit && fruit.labelEl && fruit.labelEl.parentNode){
+        fruit.labelEl.parentNode.removeChild(fruit.labelEl);
+        fruit.labelEl = null;
+      }
+    }
+
+    // ==========================
+    // TARGETS
+    // ==========================
+    function makeTextSprite(text, type){
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 240;
+      const ctx = canvas.getContext("2d");
+
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.font = "900 74px Mitr, Sarabun, Noto Sans Thai, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      const badgeColor = "rgba(37,99,235,.92)";
+
+      roundRect(ctx, 38, 48, 564, 144, 50);
+      ctx.fillStyle = "rgba(2,6,23,.78)";
+      ctx.fill();
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = "rgba(255,255,255,.86)";
+      ctx.stroke();
+
+      ctx.fillStyle = badgeColor;
+      roundRect(ctx, 58, 64, 138, 42, 21);
+      ctx.fill();
+      ctx.font = "900 28px Mitr, Sarabun, Noto Sans Thai, sans-serif";
+      ctx.fillStyle = "white";
+      ctx.fillText("คำตอบ", 127, 85);
+
+      const label = text || "รูปภาพ";
+      ctx.font = "1000 70px Mitr, Sarabun, Noto Sans Thai, sans-serif";
+      ctx.lineWidth = 14;
+      ctx.strokeStyle = "rgba(0,0,0,.70)";
+      ctx.strokeText(label, 340, 139);
+      ctx.fillStyle = "#fff7ed";
+      ctx.fillText(label, 340, 139);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.needsUpdate = true;
+      const material = new THREE.SpriteMaterial({
+        map: texture, transparent: true, depthWrite: false
+      });
+      const sprite = new THREE.Sprite(material);
+      material.depthTest = false;
+      sprite.renderOrder = 999;
+      sprite.scale.set(190, 72, 1);
+      sprite.position.set(0, -105, 95);
+      return sprite;
+    }
+
+    function roundRect(ctx, x, y, w, h, r){
+      ctx.beginPath();
+      ctx.moveTo(x+r, y);
+      ctx.arcTo(x+w, y, x+w, y+h, r);
+      ctx.arcTo(x+w, y+h, x, y+h, r);
+      ctx.arcTo(x, y+h, x, y, r);
+      ctx.arcTo(x, y, x+w, y, r);
+      ctx.closePath();
+    }
+
+    function createFruitMesh(item){
+      const group = new THREE.Group();
+
+      const outer = new THREE.Mesh(
+        new THREE.TorusGeometry(44, 8, 16, 40),
+        new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness:.3, metalness:.12 })
+      );
+      group.add(outer);
+
+      const inner = new THREE.Mesh(
+        new THREE.CircleGeometry(34, 40),
+        new THREE.MeshBasicMaterial({
+          color: item.correct === true ? 0x22c55e : 0xef4444,
+          transparent:true, opacity:.92, side:THREE.DoubleSide
+        })
+      );
+      inner.position.z = 2;
+      group.add(inner);
+
+      const bull = new THREE.Mesh(
+        new THREE.CircleGeometry(12, 32),
+        new THREE.MeshBasicMaterial({ color:0xffffff, side:THREE.DoubleSide })
+      );
+      bull.position.z = 3;
+      group.add(bull);
+
+      if(item.image_url){
+        const loader = new THREE.TextureLoader();
+        loader.load(
+          item.image_url,
+          function(texture){
+            texture.colorSpace = THREE.SRGBColorSpace;
+            const imageMat = new THREE.MeshBasicMaterial({
+              map:texture, transparent:true, side:THREE.DoubleSide
+            });
+            const imageMesh = new THREE.Mesh(new THREE.CircleGeometry(33, 48), imageMat);
+            imageMesh.position.set(0, 0, 5);
+            group.add(imageMesh);
+          },
+          undefined,
+          function(){
+            // หากโหลดรูปไม่ได้ จะใช้ข้อความ/เป้าเดิมแทน
+          }
+        );
+      }
+
+      if(item.image_url){ group.scale.set(1.45, 1.45, 1); }
+      return group;
+    }
+
+    function getTotalRounds(){
+      return externalEduGameQuestions.length || TOTAL_ROUNDS;
+    }
+
+    function spawnNextFruit(){
+      if(!gameRunning) return;
+      if(completedRounds >= getTotalRounds()){
+        finishGame();
+        return;
+      }
+      if(streaming || roundEnding) return;
+
+      roundEnding = false;
+      roundItems = pendingRoundItems || chooseRoundItems();
+      pendingRoundItems = null;
+
+      // เริ่มข้อ: ปล่อยระลอกแรกทันที แล้วระลอกต่อไปจะลงมาเรื่อย ๆ ตามเวลา (ดู updateFruit)
+      streaming = true;
+      roundClock = 0;
+      waveClock = 0;
+      spawnWave(true);
+      updateRoundTimerUI();
+      playSfx(completedRounds === 0 ? "ready" : "nextRound");
+    }
+
+    // ปล่อย "ตัวเลือกครบทุกอัน" ลงมาหนึ่งระลอก (ทุกระลอกมีครบ จึงไม่เฉลยว่าอันไหนถูก)
+    function spawnWave(first){
+      if(!roundItems.length) return;
+      const items = shuffleArray(roundItems.slice());
+      const slots = makeWaveSlots(items.length, first);
+
+      for(let index = 0; index < items.length; index++){
+        const item = items[index];
+        const mesh = createFruitMesh(item);
+        const slot = slots[index];
+
+        mesh.position.set(slot.x, slot.y, 0);
+        mesh.rotation.set(0, Math.random() * Math.PI, 0);
+        scene.add(mesh);
+
+        const fruit = {
+          id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+          item,
+          mesh,
+          pos: new THREE.Vector2(slot.x, slot.y),
+          scale: item.image_url ? 1.45 : 1,
+          radius: HIT_RADIUS * (item.image_url ? 1.35 : 1),
+          spin: THREE.MathUtils.randFloat(.8, 1.8),
+          fallSpeed: THREE.MathUtils.randFloat(FALL_SPEED_MIN, FALL_SPEED_MAX),
+          labelEl: createWordLabel2D(item)
+        };
+
+        updateWordLabel2D(fruit);
+        activeFruits.push(fruit);
+      }
+      fruits = activeFruits;
+    }
+
+    function updateRoundTimerUI(){
+      const el = document.getElementById("roundTimer");
+      if(!el) return;
+      el.textContent = streaming ? String(Math.max(0, Math.ceil(ROUND_SECONDS - roundClock))) : "--";
+    }
+
+    // หมดเวลา 15 วินาที = จบข้อ (เวลาคือตัวจบข้อเพียงอย่างเดียว ไม่มีการหักคะแนนตอนหมดเวลา) แล้วไปข้อต่อไป
+    function onRoundTimeout(){
+      streaming = false;
+      showToast("⏱️ หมดเวลา ไปข้อต่อไป", "bad");
+      updateRoundTimerUI();
+      completeRound();
+    }
+
+    function chooseRoundItems(){
+      // ถ้ามีชุดคำถามจาก EduGame ให้ใช้ชุดนั้นจริง
+      if(externalEduGameQuestions.length){
+        const q = externalEduGameQuestions[externalQuestionIndex % externalEduGameQuestions.length];
+        externalQuestionIndex++;
+        currentRoundQuestion = q.question || "เลือกคำตอบที่ถูกต้อง";
+        if(q && Array.isArray(q.items) && q.items.length >= 2){
+          return shuffleArray(q.items.slice(0, 4).map(function(item){
+            return {
+              word: String(item.word || ""),
+              image_url: String(item.image_url || item.imageUrl || ""),
+              type: String(item.type || "ตัวเลือก"),
+              correct: item.correct === true,
+              emoji: item.emoji || "🎯"
+            };
+          }));
+        }
+      }
+
+      currentRoundQuestion = "เลือกคำกริยาที่ถูกต้อง";
+      const verbs = window.WORD_BANK.filter(w => w.type === "กริยา");
+      const nouns = window.WORD_BANK.filter(w => w.type === "คำนาม");
+      const verb = pickRandom(verbs);
+      const objects = window.WORD_BANK.filter(w => w.type === "กรรม");
+      const nounPool = shuffleArray([...nouns, ...objects]);
+      const distractors = nounPool.slice(0, 3);
+      return shuffleArray([
+        {...verb, correct:true},
+        ...distractors.map(x => ({...x, correct:false}))
+      ]);
+    }
+
+    function applyExternalEduGameQuestions(questions){
+      if(!Array.isArray(questions) || !questions.length) return;
+      externalEduGameQuestions = questions;
+      externalQuestionIndex = 0;
+      currentRoundQuestion = "";
+      // ถ้าเกมยังไม่เริ่ม รอบแรกจะหยิบข้อมูลชุดนี้เมื่อกดเริ่มเกม
+      console.log("EduGame AR: รับชุดคำถามแล้ว", externalEduGameQuestions);
+    }
+    window.applyExternalEduGameQuestions = applyExternalEduGameQuestions;
+
+    function pickRandom(arr){
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function shuffleArray(arr){
+      for(let i = arr.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function makeWaveSlots(count, first){
+      // กระจายตัวเลือกคนละเลนในโซนซ้ายของจอ สลับตำแหน่งทุกระลอก และเหลื่อมความสูงเพื่อไม่ให้ซ้อนกัน
+      const zoneRight = W * DROP_ZONE_RATIO;
+      const safeLeft = 64;
+      const safeRight = Math.max(safeLeft + 30, zoneRight - 64);
+      const lanes = [];
+      for(let i = 0; i < count; i++){
+        const r = count === 1 ? .5 : i / (count - 1);
+        lanes.push(THREE.MathUtils.clamp(safeLeft + (safeRight - safeLeft) * r, safeLeft, safeRight));
+      }
+      shuffleArray(lanes);
+
+      const slots = [];
+      for(let i = 0; i < count; i++){
+        slots.push({
+          x: lanes[i] + THREE.MathUtils.randFloat(-14, 14),
+          y: first
+            ? 90 + (i * 70) + THREE.MathUtils.randFloat(0, 50)       // ระลอกแรกอยู่บนจอทันที
+            : -85 - (i * 80) - THREE.MathUtils.randFloat(0, 40)      // ระลอกถัดไปลงมาจากบนจอ
+        });
+      }
+      return slots;
+    }
+
+    function removeFruit(fruit){
+      if(!fruit || fruit.removed) return;
+      fruit.removed = true;
+
+      for(const arrow of arrows){
+        if(arrow.carriedFruit === fruit) arrow.carriedFruit = null;
+      }
+
+      removeWordLabel2D(fruit);
+      disposeSceneObject(fruit.mesh);
+
+      activeFruits = activeFruits.filter(f => f !== fruit);
+      fruits = activeFruits;
+    }
+
+    function removeAllFruits(){
+      for(const fruit of [...activeFruits]){
+        if(fruit.removed) continue;
+        fruit.removed = true;
+
+        for(const arrow of arrows){
+          if(arrow.carriedFruit === fruit) arrow.carriedFruit = null;
+        }
+
+        removeWordLabel2D(fruit);
+        disposeSceneObject(fruit.mesh);
+      }
+      activeFruits = [];
+      fruits = [];
+    }
+
+    function completeRound(){
+      if(roundEnding) return;
+      roundEnding = true;
+      streaming = false;
+      updateRoundTimerUI();
+
+      completedRounds++;
+      updateHUD();
+      playSfx("nextRound");
+
+      removeAllFruits();
+
+      setTimeout(() => {
+        roundEnding = false;
+        if(gameRunning) prepareQuestionRound();
+      }, 620);
+    }
+
+    function resolveFruit(fruit, hitByArrow, options = {}){
+      if(!fruit || roundEnding && !(options.keepFruit && hitByArrow)) return;
+
+      const item = fruit.item;
+      let delta = 0;
+
+      if(hitByArrow){
+        if(item.correct === true){
+          delta = 10;
+          score = Math.max(0, score + delta);
+          playSfx("hitGood");
+          showToast("+10 ถูกต้อง! 🎯", "good");
+          burst(fruit.pos.x, fruit.pos.y, 0x34d399);
+          updateHUD();
+
+          // ยิงถูกไม่จบข้อ: ข้อจบเมื่อครบเวลาเท่านั้น ตัวเลือกระลอกใหม่ยังลงมาต่อ
+          // (ถ้าไม่ได้ให้ธนูพาไป ให้เอาเป้าที่ถูกยิงออกจากฉากทันที)
+          if(!options.keepFruit){
+            removeFruit(fruit);
+          }
+        }else{
+          delta = -5;
+          score = Math.max(0, score + delta);
+          playSfx("hitBad");
+          showToast("-5 คำหลอก", "bad");
+          burst(fruit.pos.x, fruit.pos.y, 0xfb7185);
+          updateHUD();
+
+          if(!options.keepFruit){
+            removeFruit(fruit);
+          }
+        }
+      }else{
+        // ตัวเลือกตกพื้น (ไม่ว่าถูกหรือหลอก) เอาออกจากฉากเฉย ๆ — ระลอกใหม่จะลงมาเรื่อย ๆ จนกว่าจะหมดเวลาข้อ
+        removeFruit(fruit);
+      }
+    }
+
+    // ==========================
+    // PARTICLES
+    // ==========================
+    function burst(x, y, color){
+      for(let i=0;i<18;i++){
+        const mat = new THREE.MeshBasicMaterial({ color, transparent:true, opacity:1 });
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(4 + Math.random()*4, 8, 8), mat);
+        mesh.position.set(x, y, 40);
+        scene.add(mesh);
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 90 + Math.random()*230;
+        particles.push({
+          mesh,
+          vel: new THREE.Vector2(Math.cos(angle)*speed, Math.sin(angle)*speed),
+          life: .65 + Math.random()*.35
+        });
+      }
+    }
+
+    function updateParticles(dt){
+      for(let i=particles.length-1;i>=0;i--){
+        const p = particles[i];
+        p.life -= dt;
+        p.mesh.position.x += p.vel.x * dt;
+        p.mesh.position.y += p.vel.y * dt;
+        p.vel.y += 200 * dt;
+        p.mesh.material.opacity = Math.max(0, p.life);
+        if(p.life <= 0){
+          scene.remove(p.mesh);
+          particles.splice(i,1);
+        }
+      }
+    }
+
+    // ==========================
+    // ARROWS
+    // ==========================
+    function setObjectOpacity(obj, opacity){
+      if(!obj) return;
+      obj.traverse(child => {
+        if(child.material){
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          for(const mat of mats){
+            mat.transparent = true;
+            mat.opacity = opacity;
+            mat.needsUpdate = true;
+          }
+        }
+      });
+    }
+
+    function disposeSceneObject(obj){
+      if(!obj) return;
+      scene.remove(obj);
+      obj.traverse(child => {
+        if(child.geometry) child.geometry.dispose();
+        if(child.material){
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach(mat => mat.dispose && mat.dispose());
+        }
+      });
+    }
+
+    function getEdgeClamp(pos){
+      const minX = ARROW_EDGE_MARGIN;
+      const maxX = W - ARROW_EDGE_MARGIN;
+      const minY = ARROW_EDGE_MARGIN;
+      const maxY = H - ARROW_EDGE_MARGIN;
+
+      const clamped = new THREE.Vector2(
+        THREE.MathUtils.clamp(pos.x, minX, maxX),
+        THREE.MathUtils.clamp(pos.y, minY, maxY)
+      );
+
+      const hit = pos.x <= minX || pos.x >= maxX || pos.y <= minY || pos.y >= maxY;
+      return { hit, clamped };
+    }
+
+    function fadeAndRemoveArrow(arrow, delayMs = STICK_FADE_DELAY){
+      if(!arrow || arrow.fading) return;
+      arrow.fading = true;
+
+      setTimeout(() => {
+        let opacity = 1;
+        const fadeTimer = setInterval(() => {
+          opacity -= .12;
+          setObjectOpacity(arrow.mesh, Math.max(0, opacity));
+          if(opacity <= 0){
+            clearInterval(fadeTimer);
+            disposeSceneObject(arrow.mesh);
+            arrows = arrows.filter(a => a !== arrow);
+          }
+        }, 45);
+      }, delayMs);
+    }
+
+    function fadeAndRemoveFruit(fruit, delayMs = STICK_FADE_DELAY){
+      if(!fruit || fruit.fading) return;
+      fruit.fading = true;
+
+      if(fruit.labelEl){
+        setTimeout(() => fruit.labelEl.classList.add("fading"), delayMs);
+      }
+
+      setTimeout(() => {
+        let opacity = 1;
+        const fadeTimer = setInterval(() => {
+          opacity -= .12;
+          setObjectOpacity(fruit.mesh, Math.max(0, opacity));
+          if(opacity <= 0){
+            clearInterval(fadeTimer);
+            removeFruit(fruit);
+          }
+        }, 45);
+      }, delayMs);
+    }
+
+    function stickArrowAtEdge(arrow){
+      const edge = getEdgeClamp(arrow.pos);
+      arrow.pos.copy(edge.clamped);
+      arrow.mesh.position.x = arrow.pos.x;
+      arrow.mesh.position.y = arrow.pos.y;
+      arrow.mesh.rotation.z = Math.atan2(arrow.vel.y, arrow.vel.x);
+      arrow.stuck = true;
+      arrow.vel.set(0, 0);
+      arrow.life = 99;
+      playSfx("stick");
+      fadeAndRemoveArrow(arrow, 1400);
+    }
+
+    function attachFruitToArrow(arrow, fruit){
+      if(!arrow || !fruit || fruit.captured) return;
+
+      fruit.captured = true;
+      fruit.carriedBy = arrow;
+      arrow.carriedFruit = fruit;
+
+      const dir = arrow.vel.clone();
+      if(dir.length() < 1) dir.set(-1, 0);
+      dir.normalize();
+      fruit.offsetFromArrow = dir.clone().multiplyScalar(34);
+
+      // นับคะแนนทันทีเมื่อธนูปักผลไม้ แล้วให้ธนูพาผลไม้ไปปักที่ขอบจอ
+      resolveFruit(fruit, true, { keepFruit: true, arrow });
+    }
+
+    function stickArrowAndFruitAtEdge(arrow){
+      const fruit = arrow.carriedFruit;
+      const edge = getEdgeClamp(arrow.pos);
+
+      arrow.pos.copy(edge.clamped);
+      arrow.mesh.position.x = arrow.pos.x;
+      arrow.mesh.position.y = arrow.pos.y;
+      arrow.mesh.rotation.z = Math.atan2(arrow.vel.y, arrow.vel.x);
+      arrow.stuck = true;
+      arrow.vel.set(0, 0);
+      arrow.life = 99;
+
+      if(fruit && !fruit.removed){
+        fruit.stuck = true;
+        fruit.pos.set(
+          THREE.MathUtils.clamp(arrow.pos.x + (fruit.offsetFromArrow?.x || 0), 46, W - 46),
+          THREE.MathUtils.clamp(arrow.pos.y + (fruit.offsetFromArrow?.y || 0), 46, H - 46)
+        );
+        fruit.mesh.position.x = fruit.pos.x;
+        fruit.mesh.position.y = fruit.pos.y;
+        updateWordLabel2D(fruit);
+        fadeAndRemoveFruit(fruit, STICK_FADE_DELAY);
+        // ไม่จบข้อเมื่อยิงถูก: ผลไม้/ลูกธนูที่ปักจะเฟดออกตามปกติ แล้วเกมเล่นต่อจนหมดเวลา
+      }
+
+      playSfx("stick");
+      fadeAndRemoveArrow(arrow, STICK_FADE_DELAY);
+    }
+
+    function createProjectile(origin, dir, strength){
+      const mesh = createArrowMesh();
+      mesh.position.set(origin.x + dir.x * 50, origin.y + dir.y * 50, 50);
+      mesh.rotation.z = Math.atan2(dir.y, dir.x);
+      scene.add(mesh);
+
+      const speed = ARROW_BASE_SPEED + ARROW_EXTRA_SPEED * strength;
+
+      // ถ้าแรงยิงน้อย ลูกธนูจะมีแรงตกเริ่มต้นมากขึ้น จึงย้อยลงชัดเจน
+      const lowPowerDrop = (1 - strength) * 170;
+      const initialVel = dir.clone().multiplyScalar(speed);
+      initialVel.y += lowPowerDrop;
+
+      arrows.push({
+        mesh,
+        pos: new THREE.Vector2(mesh.position.x, mesh.position.y),
+        vel: initialVel,
+        gravity: ARROW_GRAVITY + (1 - strength) * ARROW_LOW_POWER_DROP,
+        life: 4.8,
+        strength,
+        stuck: false,
+        fading: false,
+        carriedFruit: null
+      });
+    }
+
+    function updateArrows(dt){
+      for(let i=arrows.length-1;i>=0;i--){
+        const a = arrows[i];
+        if(!a || a.fading) continue;
+
+        if(a.stuck){
+          continue;
+        }
+
+        a.life -= dt;
+
+        // ฟิสิกส์ลูกธนู: มีแรงโน้มถ่วง จึงย้อยลง โดยแรงน้อยจะย้อยมากกว่า
+        a.vel.y += a.gravity * dt;
+        a.pos.addScaledVector(a.vel, dt);
+
+        a.mesh.position.x = a.pos.x;
+        a.mesh.position.y = a.pos.y;
+        a.mesh.rotation.z = Math.atan2(a.vel.y, a.vel.x);
+
+        // ถ้าลูกธนูกำลังพาผลไม้ ให้ผลไม้ติดหัวธนูไปด้วย
+        if(a.carriedFruit){
+          const fruit = a.carriedFruit;
+          if(!fruit || fruit.removed){
+            a.carriedFruit = null;
+          }else if(!fruit.stuck){
+            const off = fruit.offsetFromArrow || new THREE.Vector2(0, 0);
+            fruit.pos.set(a.pos.x + off.x, a.pos.y + off.y);
+            fruit.mesh.position.x = fruit.pos.x;
+            fruit.mesh.position.y = fruit.pos.y;
+            fruit.mesh.rotation.y += fruit.spin * dt;
+            updateWordLabel2D(fruit);
+          }
+        }else{
+          // ตรวจชนผลไม้หลายลูก เฉพาะลูกที่ยังไม่ถูกพาไป
+          let hitFruit = null;
+          for(const fruit of activeFruits){
+            if(fruit.captured || fruit.fading || fruit.removed) continue;
+            const d = a.pos.distanceTo(fruit.pos);
+            if(d < fruit.radius){
+              hitFruit = fruit;
+              break;
+            }
+          }
+
+          if(hitFruit){
+            attachFruitToArrow(a, hitFruit);
+          }
+        }
+
+        // ชนขอบจอแล้วปัก ไม่ทะลุออกนอกจอ
+        const edge = getEdgeClamp(a.pos);
+        if(edge.hit){
+          if(a.carriedFruit){
+            stickArrowAndFruitAtEdge(a);
+          }else{
+            stickArrowAtEdge(a);
+          }
+          continue;
+        }
+
+        // หมดแรงกลางจอก่อนถึงขอบ ให้ปักลงขอบล่าง
+        if(a.life <= 0){
+          a.pos.y = H - ARROW_EDGE_MARGIN;
+          if(a.carriedFruit){
+            stickArrowAndFruitAtEdge(a);
+          }else{
+            stickArrowAtEdge(a);
+          }
+        }
+      }
+    }
+
+    function setDrawArrowVisible(show){
+      if(show && !activeDrawArrow){
+        activeDrawArrow = createArrowMesh();
+        activeDrawArrow.position.z = 55;
+        scene.add(activeDrawArrow);
+      }else if(!show && activeDrawArrow){
+        scene.remove(activeDrawArrow);
+        activeDrawArrow = null;
+      }
+    }
+
+    function updateDrawArrow(){
+      if(!activeDrawArrow || !isDrawing) return;
+
+      activeDrawArrow.position.set(bowCenter.x + bowFront.x * 12, bowCenter.y + bowFront.y * 12, 55);
+      activeDrawArrow.rotation.z = Math.atan2(bowFront.y, bowFront.x);
+      const s = .86 + drawStrength * .32;
+      activeDrawArrow.scale.set(s,s,s);
+    }
+
+    // ==========================
+    // HAND TRACKING
+    // ==========================
+    function setCheckState(row, textEl, state, message){
+      row.classList.remove("pending", "loading", "success", "error");
+      row.classList.add(state);
+
+      const icon = row.querySelector(".checkIcon");
+      if(state === "pending") icon.textContent = "•";
+      if(state === "loading") icon.textContent = "";
+      if(state === "success") icon.textContent = "✓";
+      if(state === "error") icon.textContent = "!";
+
+      textEl.textContent = message;
+    }
+
+    function waitForAITrackReady(timeoutMs = 15000){
+      if(aiTrackReady) return Promise.resolve();
+
+      return new Promise((resolve, reject) => {
+        aiReadyResolver = resolve;
+        clearTimeout(aiReadyTimer);
+        aiReadyTimer = setTimeout(() => {
+          aiReadyResolver = null;
+          reject(new Error("AI Track ใช้เวลานานเกินไป"));
+        }, timeoutMs);
+      });
+    }
+
+    function markAITrackReady(){
+      if(aiTrackReady) return;
+
+      aiTrackReady = true;
+      clearTimeout(aiReadyTimer);
+
+      setCheckState(aiCheck, aiCheckText, "success", "โหลด AI Track สำเร็จ พร้อมตรวจจับมือซ้าย/ขวา");
+      arSystemReady = cameraStarted && aiTrackReady;
+
+      if(aiReadyResolver){
+        aiReadyResolver();
+        aiReadyResolver = null;
+      }
+
+      updateStartReadyUI();
+    }
+
+    function updateStartReadyUI(){
+      if(arSystemReady){
+        preparingSystem = false;
+        prepareBtn.style.display = "none";
+        startBtn.disabled = false;
+        startBtn.classList.add("ready");
+        startBtn.style.display = "inline-flex";
+        startBtn.textContent = "เริ่มเกม";
+        playSfx("ready");
+      }
+    }
+
+    // กล้อง/AI หยุดกลางทาง: ถ้ากำลังเล่นอยู่ให้สลับเป็นโหมดเมาส์/สัมผัสเลย (เล่นต่อได้ ไม่เสียคะแนน)
+    function onCameraLost(msg){
+      cameraStarted = false; aiTrackReady = false; arSystemReady = false;
+      if(gameRunning){
+        usePointerMode();
+        showToast(msg + " — สลับเป็นโหมดเมาส์/สัมผัสให้แล้ว", "bad");
+      }else{
+        setCheckState(aiCheck, aiCheckText, "error", msg + " — กด “เล่นด้วยเมาส์/สัมผัส” ได้");
+      }
+    }
+
+    async function initHands(){
+      if(arSystemReady) return;
+      if(mediaHands && cameraStarted){
+        await waitForAITrackReady();
+        return;
+      }
+
+      setCheckState(cameraCheck, cameraCheckText, "loading", "กำลังขออนุญาตและเปิดกล้อง...");
+      setCheckState(aiCheck, aiCheckText, "pending", "รอเปิดกล้องก่อน แล้วจะโหลด AI Track ต่อ");
+
+      const camProblem = EduLibs.cameraProblem();
+      if(camProblem){
+        setCheckState(cameraCheck, cameraCheckText, "error", camProblem);
+        throw new Error(camProblem);
+      }
+
+      if(handTracker){ handTracker.stop(); handTracker = null; }
+      if(cameraHandle){ cameraHandle.stop(); cameraHandle = null; }
+      aiTrackReady = false;
+
+      // 1) เปิดกล้องก่อน — กล่องขออนุญาตจะขึ้นทันทีที่กดปุ่ม และผู้เล่นเห็นภาพตัวเองระหว่างรอโหลด AI
+      try{
+        cameraHandle = await EduLibs.openCamera(video);
+        cameraStarted = true;
+        cameraHandle.onEnded(() => onCameraLost("กล้องหยุดส่งภาพ"));
+        setCheckState(cameraCheck, cameraCheckText, "success", "เปิดกล้องสำเร็จ");
+      }catch(err){
+        cameraStarted = false;
+        arSystemReady = false;
+        setCheckState(cameraCheck, cameraCheckText, "error", EduLibs.explainCameraError(err) + " — หรือกด “เล่นด้วยเมาส์/สัมผัส”");
+        setCheckState(aiCheck, aiCheckText, "pending", "รอเปิดกล้องก่อนจึงจะโหลด AI Track ได้");
+        throw err;
+      }
+
+      // 2) โหลดไลบรารีและโมเดลตรวจจับมือ
+      setCheckState(aiCheck, aiCheckText, "loading", "กำลังโหลด AI Track สำหรับตรวจจับมือ...");
+      const releaseCamera = () => {
+        if(handTracker){ handTracker.stop(); handTracker = null; }
+        if(cameraHandle){ cameraHandle.stop(); cameraHandle = null; }
+        cameraStarted = false;
+        mediaHands = null;
+        setCheckState(cameraCheck, cameraCheckText, "pending", "ยังไม่ได้เปิดกล้อง");
+      };
+      try{
+        await EduLibs.loadAll(["hands"]);
+      }catch(err){
+        releaseCamera();
+        setCheckState(aiCheck, aiCheckText, "error", "โหลดไลบรารีตรวจจับมือไม่ได้ (ตรวจสอบอินเทอร์เน็ต) — กด “เล่นด้วยเมาส์/สัมผัส” ได้");
+        throw err;
+      }
+
+      mediaHands = new Hands({
+        locateFile: (file) => EduLibs.handsBase() + file
+      });
+      mediaHands.setOptions({
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.68,
+        minTrackingConfidence: 0.62
+      });
+      mediaHands.onResults(onHandResults);
+
+      try{
+        await EduLibs.initHands(mediaHands);
+        handTracker = EduLibs.trackHands(video, mediaHands, {
+          onFatal: () => onCameraLost("ระบบตรวจจับมือหยุดทำงาน")
+        });
+      }catch(err){
+        releaseCamera();
+        setCheckState(aiCheck, aiCheckText, "error", "โหลดโมเดลตรวจจับมือไม่ได้ (ตรวจสอบอินเทอร์เน็ต) — กด “เล่นด้วยเมาส์/สัมผัส” ได้");
+        throw err;
+      }
+
+      // 3) รอให้ AI ส่งผลเฟรมแรกกลับมาจริง (เริ่มนับหลังเปิดกล้องแล้ว ไม่นับเวลารอกดอนุญาต)
+      try{
+        await waitForAITrackReady(30000);
+      }catch(err){
+        setCheckState(aiCheck, aiCheckText, "error", "AI Track ใช้เวลานานเกินไป — ลองอีกครั้ง หรือกด “เล่นด้วยเมาส์/สัมผัส”");
+        throw err;
+      }
+      arSystemReady = cameraStarted && aiTrackReady;
+      updateStartReadyUI();
+    }
+
+    async function prepareARSystem(){
+      initAudio();
+      playSfx("button");
+      playSfx("cameraLoading");
+      if(arSystemReady){
+        updateStartReadyUI();
+        return;
+      }
+
+      if(preparingSystem) return;
+      preparingSystem = true;
+
+      prepareBtn.disabled = true;
+      prepareBtn.textContent = "กำลังตรวจสอบ...";
+      startBtn.disabled = true;
+      startBtn.classList.remove("ready");
+      startBtn.style.display = "none";
+
+      try{
+        await initHands();
+        prepareBtn.disabled = false;
+        prepareBtn.textContent = "ตรวจสอบกล้องและโหลด AI Track";
+      }catch(err){
+        preparingSystem = false;
+        prepareBtn.disabled = false;
+        prepareBtn.textContent = "ลองตรวจสอบอีกครั้ง";
+        playSfx("error");
+        showToast("ตรวจสอบระบบไม่สำเร็จ ลองกด “เล่นด้วยเมาส์/สัมผัส” แทนได้", "bad");
+      }
+    }
+
+    function onHandResults(results){
+      markAITrackReady();
+      trackedHands.Left = null;
+      trackedHands.Right = null;
+
+      if(!results.multiHandLandmarks || !results.multiHandedness) {
+        drawDebug();
+        return;
+      }
+
+      for(let i=0; i<results.multiHandLandmarks.length; i++){
+        const landmarks = results.multiHandLandmarks[i];
+        const rawLabel = results.multiHandedness[i].label; // Left / Right
+        let label = rawLabel;
+
+        if(swapHands){
+          label = rawLabel === "Left" ? "Right" : "Left";
+        }
+
+        const points = landmarks.map(p => ({
+          x: (MIRROR_VIDEO ? (1 - p.x) : p.x) * W,
+          y: p.y * H,
+          z: p.z || 0
+        }));
+
+        const center = averagePoint([points[0], points[5], points[9], points[13], points[17]]);
+        const gesture = detectGesture(landmarks);
+
+        trackedHands[label] = {
+          label,
+          rawLabel,
+          landmarks,
+          points,
+          center,
+          gesture
+        };
+      }
+
+      drawDebug();
+    }
+
+    function averagePoint(arr){
+      return {
+        x: arr.reduce((s,p)=>s+p.x,0)/arr.length,
+        y: arr.reduce((s,p)=>s+p.y,0)/arr.length
+      };
+    }
+
+    function distNorm(a,b){
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      return Math.sqrt(dx*dx + dy*dy);
+    }
+
+    function detectGesture(lm){
+      // ใช้วิธี heuristic: นิ้วเหยียดเมื่อปลายนิ้วอยู่ไกลจากข้อมือมากกว่าข้อกลาง
+      const wrist = lm[0];
+      const fingers = [
+        { tip:8, pip:6 },
+        { tip:12, pip:10 },
+        { tip:16, pip:14 },
+        { tip:20, pip:18 }
+      ];
+
+      let extended = 0;
+      for(const f of fingers){
+        if(distNorm(lm[f.tip], wrist) > distNorm(lm[f.pip], wrist) * 1.12) extended++;
+      }
+
+      // นิ้วโป้งช่วยแยกแบมือ/กำมือ
+      const thumbOpen = distNorm(lm[4], lm[9]) > distNorm(lm[3], lm[9]) * 1.03;
+      if(thumbOpen) extended += .5;
+
+      if(extended >= 3.3) return "open";
+      if(extended <= 1.2) return "fist";
+      return "half";
+    }
+
+    function drawDebug(){
+      debugCanvas.width = W * Math.min(window.devicePixelRatio || 1, 2);
+      debugCanvas.height = H * Math.min(window.devicePixelRatio || 1, 2);
+      debugCanvas.style.width = W + "px";
+      debugCanvas.style.height = H + "px";
+      debugCtx.setTransform(debugCanvas.width / W, 0, 0, debugCanvas.height / H, 0, 0);
+      debugCtx.clearRect(0,0,W,H);
+
+      if(!debugVisible || pointerMode) return;
+
+      drawHand(trackedHands.Left, "#facc15", "มือซ้าย");
+      drawHand(trackedHands.Right, "#38bdf8", "มือขวา");
+    }
+
+    function drawHand(hand, color, label){
+      if(!hand) return;
+      const pts = hand.points;
+      const connections = [
+        [0,1],[1,2],[2,3],[3,4],
+        [0,5],[5,6],[6,7],[7,8],
+        [0,9],[9,10],[10,11],[11,12],
+        [0,13],[13,14],[14,15],[15,16],
+        [0,17],[17,18],[18,19],[19,20],
+        [5,9],[9,13],[13,17]
+      ];
+
+      debugCtx.save();
+      debugCtx.lineWidth = 4;
+      debugCtx.strokeStyle = color;
+      debugCtx.fillStyle = color;
+      debugCtx.shadowColor = "rgba(0,0,0,.65)";
+      debugCtx.shadowBlur = 6;
+
+      for(const [a,b] of connections){
+        debugCtx.beginPath();
+        debugCtx.moveTo(pts[a].x, pts[a].y);
+        debugCtx.lineTo(pts[b].x, pts[b].y);
+        debugCtx.stroke();
+      }
+
+      for(const p of pts){
+        debugCtx.beginPath();
+        debugCtx.arc(p.x, p.y, 5, 0, Math.PI*2);
+        debugCtx.fill();
+      }
+
+      debugCtx.font = "900 18px Mitr, Sarabun, Noto Sans Thai, sans-serif";
+      debugCtx.fillStyle = "white";
+      debugCtx.strokeStyle = "rgba(0,0,0,.7)";
+      debugCtx.lineWidth = 5;
+      const text = `${label}: ${hand.gesture === "fist" ? "กำมือ" : hand.gesture === "open" ? "แบมือ" : "กึ่งแบ"}`;
+      debugCtx.strokeText(text, hand.center.x + 14, hand.center.y - 18);
+      debugCtx.fillText(text, hand.center.x + 14, hand.center.y - 18);
+      debugCtx.restore();
+    }
+
+    // ==========================
+    // GAME LOOP
+    // ==========================
+    function animate(now){
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(.05, (now - lastFrame) / 1000);
+      lastFrame = now;
+
+      if(gameRunning){
+        elapsedMs = now - startTime;
+        updateHandGameLogic(dt);
+        updateFruit(dt);
+        updateArrows(dt);
+        updateParticles(dt);
+        updateHUD();
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function updateHandGameLogic(dt){
+      if(pointerMode) synthPointerHands();
+      const left = trackedHands.Left;
+      const right = trackedHands.Right;
+
+      if(left){
+        // ล็อกคันธนูให้อยู่เฉพาะครึ่งจอขวา ไม่ให้ล้ำเข้าโซนคำศัพท์
+        const playerZoneLeft = W * .5;
+        const bowSafeMargin = 118;
+        const clampedBowX = THREE.MathUtils.clamp(left.center.x, playerZoneLeft + bowSafeMargin, W - 88);
+        const clampedBowY = THREE.MathUtils.clamp(left.center.y, 112, H - 82);
+        bowCenter.set(clampedBowX, clampedBowY);
+
+        bowGroup.position.set(bowCenter.x, bowCenter.y, 30);
+
+        // หาแกนคันธนูจากแนวฝ่ามือซ้าย แล้วเอาเวกเตอร์ตั้งฉากเป็นหน้าคันธนู
+        const p5 = left.points[5];   // index MCP
+        const p17 = left.points[17]; // pinky MCP
+        const axis = new THREE.Vector2(p5.x - p17.x, p5.y - p17.y);
+        if(axis.length() > 8){
+          axis.normalize();
+
+          let frontA = new THREE.Vector2(-axis.y, axis.x);
+          let frontB = new THREE.Vector2(axis.y, -axis.x);
+
+          // หน้าคันธนูควรหันไปทางโซนคำด้านซ้ายเป็นหลัก
+          bowFront.copy(frontA.x < frontB.x ? frontA : frontB).normalize();
+
+          // ป้องกันทิศหลุดเกินไป ให้ยิงไปทางซ้ายเสมอแต่ยังเอียงขึ้นลงตามมือ
+          if(bowFront.x > -0.18) bowFront.x = -0.18;
+          bowFront.normalize();
+
+          const angle = Math.atan2(axis.y, axis.x) + Math.PI / 2;
+          bowGroup.rotation.z = angle;
+        }
+      }
+
+      let status = "";
+      status += left ? `ซ้าย:${gestureThai(left.gesture)} ` : "ซ้าย:ไม่พบ ";
+      status += right ? `ขวา:${gestureThai(right.gesture)}` : "ขวา:ไม่พบ";
+      if(left && left.center.x < W * .5){
+        status += " | คันธนูล็อกเขตขวา";
+      }
+      statusValue.textContent = status;
+
+      if(!left || !right){
+        isDrawing = false;
+        stopChargeLoop();
+        drawStrength = 0;
+        setDrawArrowVisible(false);
+        updateBowString(null);
+        updateChargeVisual();
+        previousRightGesture = right ? right.gesture : "none";
+        return;
+      }
+
+      const rightPoint = new THREE.Vector2(
+        THREE.MathUtils.clamp(right.center.x, W * .5 + 24, W - 24),
+        THREE.MathUtils.clamp(right.center.y, 24, H - 24)
+      );
+      const pullVector = rightPoint.clone().sub(bowCenter);
+      const oppositeFront = bowFront.clone().multiplyScalar(-1);
+      const pullProjection = pullVector.dot(oppositeFront);
+      const nearBow = rightPoint.distanceTo(bowCenter) < 310;
+
+      if(right.gesture === "fist" && nearBow){
+        if(!isDrawing){
+          playSfx("drawStart");
+          startChargeLoop();
+        }
+        isDrawing = true;
+        drawHandPoint = rightPoint.clone();
+        const targetStrength = getTargetStrengthFromPull(pullProjection);
+        smoothChargeToTarget(targetStrength, dt);
+        setDrawArrowVisible(true);
+        updateBowString(drawHandPoint);
+        updateDrawArrow();
+      }else if(isDrawing && right.gesture === "fist"){
+        drawHandPoint = rightPoint.clone();
+        const targetStrength = getTargetStrengthFromPull(pullProjection);
+        smoothChargeToTarget(targetStrength, dt);
+        setDrawArrowVisible(true);
+        updateBowString(drawHandPoint);
+        updateDrawArrow();
+      }else if(isDrawing && right.gesture === "open" && previousRightGesture === "fist"){
+        const strength = drawStrength;
+        if(strength >= MIN_RELEASE_STRENGTH){
+          playSfx("release", strength);
+          createProjectile(bowCenter.clone(), bowFront.clone(), strength);
+          showToast(`ยิง! ${Math.round(strength * 100)}%`, "neutral");
+        }else{
+          playSfx("lowPower");
+          showToast("ดึงแรงอีกนิด", "bad");
+        }
+        isDrawing = false;
+        stopChargeLoop();
+        drawStrength = 0;
+        setDrawArrowVisible(false);
+        updateBowString(null);
+      }else if(right.gesture === "open"){
+        isDrawing = false;
+        stopChargeLoop();
+        drawStrength = 0;
+        setDrawArrowVisible(false);
+        updateBowString(null);
+      }
+
+      updateChargeLoop(drawStrength);
+      updateChargeVisual();
+      previousRightGesture = right.gesture;
+    }
+
+    function gestureThai(g){
+      if(g === "fist") return "กำ";
+      if(g === "open") return "แบ";
+      if(g === "half") return "กึ่ง";
+      return "-";
+    }
+
+    function getTargetStrengthFromPull(pullProjection){
+      // แรงยิงขึ้นอยู่กับระยะการดึงจริง
+      // มี dead zone กันมือสั่น และใช้เส้นโค้ง smoothstep ให้ดึงช่วงแรกเพิ่มช้า ดึงไกลจึงแรงขึ้นชัด
+      const raw = THREE.MathUtils.clamp((pullProjection - PULL_DEAD_ZONE) / (MAX_PULL - PULL_DEAD_ZONE), 0, 1);
+      return raw * raw * (3 - 2 * raw);
+    }
+
+    function smoothChargeToTarget(targetStrength, dt){
+      // ไม่ให้แรงยิงกระโดดตามมือทันที แต่ค่อย ๆ เพิ่ม/ลดตามระยะดึง
+      const speed = targetStrength > drawStrength ? CHARGE_RISE_SPEED : CHARGE_FALL_SPEED;
+      const maxStep = speed * dt;
+      const diff = targetStrength - drawStrength;
+
+      if(Math.abs(diff) <= maxStep){
+        drawStrength = targetStrength;
+      }else{
+        drawStrength += Math.sign(diff) * maxStep;
+      }
+
+      drawStrength = THREE.MathUtils.clamp(drawStrength, 0, 1);
+    }
+
+    function updateFruit(dt){
+      if(streaming && !roundEnding){
+        roundClock += dt;
+        updateRoundTimerUI();
+        if(roundClock >= ROUND_SECONDS){ onRoundTimeout(); return; }
+        waveClock += dt;
+        if(waveClock >= WAVE_INTERVAL){ waveClock -= WAVE_INTERVAL; spawnWave(false); }
+      }
+      if(activeFruits.length === 0 || roundEnding) return;
+
+      for(let i = activeFruits.length - 1; i >= 0; i--){
+        if(roundEnding) break;
+
+        const fruit = activeFruits[i];
+        if(!fruit) continue;
+
+        if(fruit.captured || fruit.stuck || fruit.fading || fruit.removed){
+          continue;
+        }
+
+        fruit.pos.y += (fruit.fallSpeed || FALL_SPEED_MIN) * dt;
+        fruit.mesh.position.y = fruit.pos.y;
+        updateWordLabel2D(fruit);
+        fruit.mesh.rotation.y += fruit.spin * dt;
+        fruit.mesh.rotation.z += .25 * dt;
+
+        if(fruit.pos.y > H + 85){
+          resolveFruit(fruit, false);
+        }
+      }
+    }
+
+    function updateHUD(){
+      const qEl = document.getElementById("questionValue");
+      if(qEl) qEl.textContent = currentRoundQuestion || "รอเริ่มเกม";
+      scoreValue.textContent = String(score);
+      roundValue.textContent = `${completedRounds}/${getTotalRounds()}`;
+      timeValue.textContent = formatTime(elapsedMs);
+      if(window.EduCommon) EduCommon.reportScore(score);
+    }
+
+    function formatTime(ms){
+      const sec = Math.floor(ms / 1000);
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+    }
+
+    function animateButtonPress(btn){
+      btn.classList.remove("justPressed");
+      void btn.offsetWidth;
+      btn.classList.add("justPressed");
+      clearTimeout(btn._pressTimer);
+      btn._pressTimer = setTimeout(() => btn.classList.remove("justPressed"), 180);
+    }
+
+    function updateToggleButtons(){
+      if(swapHands){
+        swapBtn.classList.add("on");
+        swapBtn.classList.remove("off");
+        swapBtn.textContent = "สลับมือ: เปิด";
+        swapBtn.setAttribute("aria-pressed", "true");
+      }else{
+        swapBtn.classList.add("off");
+        swapBtn.classList.remove("on");
+        swapBtn.textContent = "สลับมือ: ปิด";
+        swapBtn.setAttribute("aria-pressed", "false");
+      }
+
+      if(debugVisible){
+        debugBtn.classList.add("on");
+        debugBtn.classList.remove("off");
+        debugBtn.textContent = "จุดมือ: เปิด";
+        debugBtn.setAttribute("aria-pressed", "true");
+      }else{
+        debugBtn.classList.add("off");
+        debugBtn.classList.remove("on");
+        debugBtn.textContent = "จุดมือ: ปิด";
+        debugBtn.setAttribute("aria-pressed", "false");
+      }
+
+      if(soundBtn){
+        if(soundEnabled){
+          soundBtn.classList.add("on");
+          soundBtn.classList.remove("off");
+          soundBtn.textContent = "เสียง: เปิด";
+          soundBtn.setAttribute("aria-pressed", "true");
+        }else{
+          soundBtn.classList.add("off");
+          soundBtn.classList.remove("on");
+          soundBtn.textContent = "เสียง: ปิด";
+          soundBtn.setAttribute("aria-pressed", "false");
+        }
+      }
+    }
+
+    function showToast(text, type){
+      // ย้าย UI ข้อความไปแสดงในช่องใต้เวลา
+      if(messageValue){
+        messageValue.className = "messageValue";
+        if(type === "good") messageValue.classList.add("good");
+        else if(type === "bad") messageValue.classList.add("bad");
+        else messageValue.classList.add("neutral");
+
+        messageValue.textContent = text;
+        messageValue.classList.remove("flash");
+        void messageValue.offsetWidth;
+        messageValue.classList.add("flash");
+
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => {
+          messageValue.classList.remove("flash");
+          messageValue.classList.remove("good", "bad", "neutral");
+        }, 1200);
+      }
+
+      // ปิด toast กลางจอเดิม
+      if(toast){
+        toast.className = "";
+        toast.textContent = "";
+      }
+    }
+
+    function showQuestionOverlay(){
+      const overlay = document.getElementById("questionOverlay");
+      const text = document.getElementById("questionOverlayText");
+      const round = document.getElementById("questionRound");
+      const image = document.getElementById("questionOverlayImage");
+      if(!overlay || !text) return;
+      text.textContent = currentRoundQuestion || "เลือกคำตอบที่ถูกต้อง";
+      if(round) round.textContent = `ข้อที่ ${Math.min(completedRounds + 1, getTotalRounds())} / ${getTotalRounds()}`;
+      const q = externalEduGameQuestions[externalQuestionIndex - 1];
+      if(image){
+        if(q && q.image_url){ image.src = q.image_url; image.style.display = "block"; }
+        else { image.removeAttribute("src"); image.style.display = "none"; }
+      }
+      overlay.classList.add("show");
+      overlay.setAttribute("aria-hidden", "false");
+      updateHUD();
+    }
+
+    function hideQuestionOverlay(){
+      const overlay = document.getElementById("questionOverlay");
+      if(!overlay) return;
+      overlay.classList.remove("show");
+      overlay.setAttribute("aria-hidden", "true");
+    }
+
+    function prepareQuestionRound(){
+      if(!gameRunning) return;
+      if(completedRounds >= getTotalRounds()){
+        finishGame();
+        return;
+      }
+      pendingRoundItems = chooseRoundItems();
+      showQuestionOverlay();
+    }
+
+    function startGame(){
+      score = 0;
+      completedRounds = 0;
+      elapsedMs = 0;
+      externalQuestionIndex = 0;
+      pendingRoundItems = null;
+      hideQuestionOverlay();
+      if(messageValue){
+        messageValue.className = "messageValue";
+        messageValue.textContent = "เริ่มเกมแล้ว";
+      }
+      startTime = performance.now();
+      gameRunning = true;
+      roundEnding = false;
+
+      clearSceneObjects();
+      updateHUD();
+      gameOver.classList.remove("show");
+
+      if(!arSystemReady){
+        startOverlay.style.display = "flex";
+        showToast("กรุณาตรวจสอบกล้องและ AI Track ก่อน", "bad");
+        return;
+      }
+
+      startOverlay.style.display = "none";
+      playSfx("start");
+      prepareQuestionRound();
+    }
+
+    function clearSceneObjects(){
+      removeAllFruits();
+      roundEnding = false;
+      streaming = false;
+      roundItems = [];
+      updateRoundTimerUI();
+
+      for(const a of arrows) disposeSceneObject(a.mesh);
+      for(const p of particles) scene.remove(p.mesh);
+      arrows = [];
+      particles = [];
+      fruits = [];
+      isDrawing = false;
+      drawStrength = 0;
+      setDrawArrowVisible(false);
+      updateBowString(null);
+      updatePowerGauge();
+    }
+
+    function finishGame(){
+      gameRunning = false;
+      stopChargeLoop();
+      playSfx("gameOver");
+      finalScore.textContent = `${score} คะแนน`;
+      const summary = document.getElementById("gameOverSummary");
+      if(summary) summary.textContent = `เล่นครบ ${getTotalRounds()} ข้อแล้ว`;
+      gameOver.classList.add("show");
+      if(window.EduCommon){
+        EduCommon.post("EDUGAME_AR_RESULT", { score: score, rounds: getTotalRounds() });
+        EduCommon.reportScore(score, { final: true });
+      }
+    }
+
+    function resize(){
+      W = window.innerWidth;
+      H = window.innerHeight;
+
+      if(renderer){
+        renderer.setSize(W, H);
+        camera.left = 0;
+        camera.right = W;
+        camera.top = 0;
+        camera.bottom = H;
+        camera.updateProjectionMatrix();
+      }
+
+      drawDebug();
+    }
+
+    // ==========================
+    // EVENTS
+    // ==========================
+    prepareBtn.addEventListener("click", prepareARSystem);
+    document.getElementById("pointerBtn").addEventListener("click", () => { initAudio(); usePointerMode(); });
+    startBtn.addEventListener("click", () => { initAudio(); playSfx("button"); startGame(); });
+    playAgainBtn.addEventListener("click", () => { initAudio(); playSfx("button"); startGame(); });
+    resetBtn.addEventListener("click", () => { animateButtonPress(resetBtn); initAudio(); playSfx("button"); startGame(); });
+
+    howBtn.addEventListener("click", () => {
+      playSfx("button");
+      alert("เคล็ดลับ:\n\n1) กดตรวจสอบกล้องและ AI Track ก่อนเริ่มเกม\n2) ให้มือซ้ายอยู่ด้านขวาของจอและเห็นชัด\n3) กำมือขวาใกล้คันธนูก่อน แล้วค่อยลากเข้าหาตัว\n4) แบมือขวาให้ชัดเพื่อปล่อยลูกธนู\n5) หากซ้าย/ขวาสลับ ให้กดปุ่ม “สลับมือซ้าย/ขวา”");
+    });
+
+    swapBtn.addEventListener("click", () => {
+      swapHands = !swapHands;
+      animateButtonPress(swapBtn);
+      playSfx(swapHands ? "toggleOn" : "toggleOff");
+      updateToggleButtons();
+      showToast(swapHands ? "สลับมือ: เปิด" : "สลับมือ: ปิด", "neutral");
+    });
+
+    debugBtn.addEventListener("click", () => {
+      debugVisible = !debugVisible;
+      animateButtonPress(debugBtn);
+      playSfx(debugVisible ? "toggleOn" : "toggleOff");
+      updateToggleButtons();
+      drawDebug();
+      showToast(debugVisible ? "จุดมือ: เปิด" : "จุดมือ: ปิด", "neutral");
+    });
+
+    soundBtn.addEventListener("click", () => {
+      soundEnabled = !soundEnabled;
+      animateButtonPress(soundBtn);
+      if(soundEnabled){
+        initAudio();
+        updateToggleButtons();
+        playSfx("toggleOn");
+        showToast("เสียง: เปิด", "neutral");
+      }else{
+        stopChargeLoop();
+        updateToggleButtons();
+        showToast("เสียง: ปิด", "neutral");
+      }
+    });
+
+    window.addEventListener("resize", resize);
+
+    // ==========================
+    const beginRoundBtn = document.getElementById("beginRoundBtn");
+    if(beginRoundBtn){
+      beginRoundBtn.addEventListener("click", () => {
+        hideQuestionOverlay();
+        spawnNextFruit();
+      });
+    }
+
+    // BOOT
+    // ==========================
+    initThree();
+    setupPointerEvents();
+    if(window.EDUGAME_EXTERNAL_QUESTIONS && window.EDUGAME_EXTERNAL_QUESTIONS.length){
+      applyExternalEduGameQuestions(window.EDUGAME_EXTERNAL_QUESTIONS); // ชุดคำถามที่มาถึงก่อนเกมโหลดเสร็จ
+    }
+    updateToggleButtons();
+    resize();
+    requestAnimationFrame(animate);
+
+    // แสดงตำแหน่งคันธนูทดลองก่อนกล้องเจอมือ
+    bowGroup.position.set(W * .82, H * .52, 30);
+    updateHUD();
+  </script>
+
+<script>
+(function(){
+  // โหลด three.js (จำเป็น) แล้วค่อยรันโค้ดเกมหลัก; MediaPipe จะโหลดตอนกดตรวจสอบกล้อง
+  function showFatal(msg){
+    var d = document.createElement("div");
+    d.style.cssText = "position:fixed;inset:0;z-index:99;display:flex;align-items:center;justify-content:center;background:#030712;color:#fff;font-family:Mitr,sans-serif;text-align:center;padding:24px";
+    d.innerHTML = "<div style='max-width:520px'><div style='font-size:48px'>⚠️</div><h2>เปิดเกมไม่สำเร็จ</h2><p style='line-height:1.7;opacity:.85'>" + msg + "</p><button onclick='location.reload()' style='padding:12px 22px;border-radius:12px;border:0;font:600 16px Mitr;cursor:pointer'>ลองใหม่</button></div>";
+    document.body.appendChild(d);
+  }
+  EduLibs.load("three").then(function(){
+    var s = document.createElement("script");
+    s.textContent = document.getElementById("mainCode").textContent;
+    document.body.appendChild(s);
+    if(window.parent && window.parent !== window) window.parent.postMessage({ type: "EDUGAME_AR_READY" }, "*");
+  }).catch(function(){
+    showFatal("โหลดไลบรารีกราฟิก 3D (three.js) ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต หรือวางไฟล์ไว้ที่ vendor/three.min.js ตามคำแนะนำใน README");
+  });
+})();
+</script>
+<script>
+(function(){
+  function sendReady(){
+    if(window.parent && window.parent !== window){
+      window.parent.postMessage({ type: "EDUGAME_AR_READY" }, "*");
+    }
+  }
+
+  window.addEventListener("message", function(event){
+    const data = event.data;
+    if(!data || data.type !== "EDUGAME_QUESTION_SET" || !data.payload) return;
+    const incoming = Array.isArray(data.payload.questions) ? data.payload.questions : [];
+    if(!incoming.length) return;
+
+    const converted = EduCommon.normalizeQuestions(incoming).map(function(q){
+      const answers = q.answers;
+      const correct = answers[q.correct];
+      const wrong = answers.filter(function(_, i){ return i !== q.correct; });
+      for(let i = wrong.length - 1; i > 0; i--){ // สุ่มว่าข้อผิดข้อไหนจะลงมา
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = wrong[i]; wrong[i] = wrong[j]; wrong[j] = tmp;
+      }
+      const distractors = wrong.filter(function(a){ return a.text || a.image_url; }).slice(0, 3);
+      while(distractors.length < 2) distractors.push({text:"คำตอบอื่น", image_url:""});
+      return {
+        question: q.question,
+        image_url: q.image_url,
+        items: [
+          {word: correct.text, image_url: correct.image_url, type: "คำตอบที่ถูก", correct: true, emoji: "🎯"},
+          {word: distractors[0].text, image_url: distractors[0].image_url, type: "ตัวเลือก", correct: false, emoji: "🎯"},
+          {word: distractors[1].text, image_url: distractors[1].image_url, type: "ตัวเลือก", correct: false, emoji: "🎯"}
+        ].concat(distractors.slice(2).map(function(d){ return {word: d.text, image_url: d.image_url, type: "ตัวเลือก", correct: false, emoji: "🎯"}; }))
+      };
+    });
+    EduCommon.preloadQuestions(EduCommon.normalizeQuestions(incoming));
+
+    window.EDUGAME_EXTERNAL_QUESTIONS = converted;
+    if(typeof window.applyExternalEduGameQuestions === "function") {
+      window.applyExternalEduGameQuestions(converted);
+    }
+  });
+
+  // แจ้งหน้า EduGame ว่า iframe พร้อมรับชุดคำถาม
+  if(document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", sendReady, {once:true});
+  } else {
+    sendReady();
+  }
+})();
+</script>
+
+</body>
+</html>

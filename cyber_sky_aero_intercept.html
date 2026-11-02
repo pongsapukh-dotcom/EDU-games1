@@ -1,0 +1,126 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>เกราะเวหาไซเบอร์</title>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&family=Orbitron:wght@500;700;800&family=Prompt:wght@400;600;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020817;color:#e8fbff;font-family:Prompt,sans-serif}#v{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.62;filter:brightness(.85) saturate(1.05)}canvas{position:fixed;inset:0;width:100%;height:100%}.hud{position:fixed;z-index:4;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;gap:8px;pointer-events:none}.glass{background:rgba(3,15,34,.72);border:1px solid rgba(70,220,255,.3);backdrop-filter:blur(10px);border-radius:14px;padding:9px 13px}.orbit{font-family:Orbitron}.modal{position:fixed;z-index:9;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,3,12,.82)}.card{width:min(720px,calc(100% - 32px));padding:28px;border-radius:24px;background:rgba(4,16,34,.97);border:1px solid rgba(74,220,255,.35);text-align:center}.bar{height:8px;background:#16334a;border-radius:8px;overflow:hidden}.fill{height:100%;width:0;background:#67e8f9}.banner{position:fixed;z-index:6;top:20%;left:50%;transform:translateX(-50%);padding:12px 24px;border-radius:14px;text-align:center;display:none}.nova{position:fixed;z-index:4;bottom:12px;left:12px;max-width:420px}.stars{font-size:42px;letter-spacing:6px;color:#fde68a}
+#question-pop{position:fixed;z-index:8;left:50%;top:50%;width:min(92vw,920px);min-height:170px;box-sizing:border-box;padding:clamp(20px,4vw,44px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:linear-gradient(135deg,rgba(5,35,62,.98),rgba(9,18,48,.98));border:2px solid #67e8f9;border-radius:26px;box-shadow:0 0 55px rgba(34,211,238,.35);transform:translate(-50%,-50%);opacity:0;pointer-events:none}
+#question-pop.show{animation:question-arrive 2.15s cubic-bezier(.2,.8,.2,1) forwards}
+#question-pop .q-label{font:700 clamp(13px,2vw,19px) Orbitron,sans-serif;letter-spacing:.14em;color:#67e8f9}
+#question-pop .q-text{font-size:clamp(23px,4vw,42px);font-weight:700;line-height:1.35;color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.5)}
+#question-pop img{max-width:min(40vw,230px);max-height:22vh;object-fit:contain;border-radius:12px}
+@keyframes question-arrive{0%{top:50%;transform:translate(-50%,-50%) scale(1);width:min(92vw,920px);min-height:210px;opacity:0}12%{opacity:1}68%{top:50%;transform:translate(-50%,-50%) scale(.88);width:min(92vw,920px);opacity:1}100%{top:84px;transform:translate(-50%,0) scale(.68);width:min(92vw,920px);min-height:110px;padding:12px 20px;border-radius:18px;opacity:.96}}
+@media(max-width:600px){@keyframes question-arrive{0%{top:50%;transform:translate(-50%,-50%) scale(1);width:94vw;min-height:200px;opacity:0}12%{opacity:1}68%{top:50%;transform:translate(-50%,-50%) scale(.9);width:94vw;opacity:1}100%{top:76px;transform:translate(-50%,0) scale(.78);width:94vw;min-height:90px;padding:10px;border-radius:16px;opacity:.96}}}
+#question-pop.hide{display:none}
+
+.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-2xl{font-size:1.5rem;line-height:2rem}@media(min-width:768px){.md\:text-5xl{font-size:3rem;line-height:1.1}}
+.mt-3{margin-top:.75rem}.mt-5{margin-top:1.25rem}.opacity-75{opacity:.75}
+button#go,button#goPointer{border:0;cursor:pointer;border-radius:12px;padding:12px 24px;font-weight:700;font-family:inherit;font-size:16px;background:#67e8f9;color:#020617}
+button#goPointer{background:rgba(255,255,255,.1);color:#e8fbff;border:1px solid rgba(103,232,249,.5);margin-left:8px}
+#modal #cam-note{margin-top:14px;font-size:13px;color:#fde68a;min-height:18px}
+canvas#c{touch-action:none}
+</style></head><body>
+<video id="v" autoplay playsinline muted></video><canvas id="c"></canvas>
+<div class="hud"><div class="glass"><div class="orbit">CYBER SKY</div><small>MISSION <b id="m">0/8</b></small></div><div class="glass"><small>SCORE <b id="s">0</b> &nbsp; COMBO ×<b id="co">1</b> &nbsp; ⏱ <b id="tm">15</b></small></div></div>
+<div class="nova glass"><b style="color:#67e8f9">AI NOVA</b><img id="qimg" alt="รูปประกอบคำถาม" style="display:none;max-height:120px;max-width:100%;border-radius:10px;margin:6px 0;object-fit:contain"><div id="msg">กำลังเตรียมระบบ...</div><div class="bar"><div id="charge" class="fill"></div></div></div>
+<div id="banner" class="banner"></div><div id="question-pop" aria-live="polite"><div class="q-label">INCOMING QUESTION</div><div id="question-pop-text" class="q-text"></div><img id="question-pop-img" alt="" style="display:none"></div>
+<div id="modal" class="modal"><div class="card"><div class="orbit text-3xl md:text-5xl">🛡️ เกราะเวหาไซเบอร์</div><h2 id="mt" class="text-2xl mt-3">ภารกิจโดรนคำควบกล้ำ</h2><p id="md" class="opacity-75 mt-3">กางฝ่ามือเพื่อเล็งโดรน ล็อกเป้าหมายค้างไว้ 0.75 วินาที แล้วปล่อยลำแสงพลังงาน • ข้อละ 15 วินาที ยิงได้ไม่จำกัดจนหมดเวลา</p><div class="mt-5"><button id="go">📷 เปิดกล้องและเริ่มภารกิจ</button><button id="goPointer">🖱️ เล่นด้วยเมาส์/สัมผัส</button></div><div id="cam-note"></div></div></div>
+<script src="edugame-common.js"></script><script src="edugame-libs.js"></script>
+<script>
+const cv=document.getElementById('c'),x=cv.getContext('2d'),vid=document.getElementById('v');let nextWaveAt=0,lastT=0,pointerMode=false,ptr=null,loopOn=false,camStarted=false,advancing=false,qStart=0,TIME_LIMIT=15,W,H,dpr=1,running=false,hand=null,open=false,qs=[],idx=0,score=0,combo=1,drones=[],target=null,lockAt=0,particles=[],shake=0,audio=null,cam=null;
+function size(){W=innerWidth;H=innerHeight;dpr=devicePixelRatio||1;cv.width=W*dpr;cv.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0)}addEventListener('resize',size);size();
+function norm(a){return (a||[]).map(q=>{const n=EduCommon.normalizeQuestion(q);if(!n.question)n.question='เลือกคำตอบที่ถูกต้อง';if(!Number.isInteger(q.correct)&&q.correctAnswer){const k=n.answers.findIndex(x=>x.text===q.correctAnswer);n.correct=Math.max(0,k)}return n})}
+
+function defaults(){return norm([{question:'คำใดเป็นคำควบกล้ำแท้ที่มี ร',answers:['ครู','ตลาด','บ้าน','ดินสอ'],correct:0},{question:'คำใดเป็นคำควบกล้ำแท้ที่มี ล',answers:['กล้า','ขนม','จาน','โต๊ะ'],correct:0},{question:'คำใดเป็นคำควบกล้ำแท้ที่มี ว',answers:['กวาง','กิน','นอน','เขียน'],correct:0},{question:'คำใดเป็นคำควบกล้ำแท้',answers:['พร้อม','อาหาร','โรงเรียน','นาฬิกา'],correct:0},{question:'คำใดมีพยัญชนะต้นควบกล้ำ',answers:['ครู','ช้าง','แมว','ดินสอ'],correct:0},{question:'คำใดเป็นคำควบกล้ำแท้',answers:['กลม','กระเป๋า','ดอกไม้','หนังสือ'],correct:0},{question:'คำใดเป็นคำควบกล้ำแท้ที่มี ว',answers:['กวาด','กิน','นอน','เขียน'],correct:0},{question:'คำใดเป็นคำควบกล้ำแท้ที่มี ร',answers:['กรอบ','ปลา','แก้ว','โต๊ะ'],correct:0}])}
+function say(t){document.getElementById('msg').textContent=t}
+function snd(type){try{audio=audio||new (AudioContext||webkitAudioContext)();let o=audio.createOscillator(),g=audio.createGain();o.connect(g);g.connect(audio.destination);let now=audio.currentTime;o.frequency.setValueAtTime(type==='charge'?180:type==='hit'?700:type==='bad'?100:320,now);o.frequency.exponentialRampToValueAtTime(type==='hit'?1200:type==='charge'?600:60,now+.25);g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(.12,now+.02);g.gain.exponentialRampToValueAtTime(.0001,now+.32);o.start();o.stop(now+.34)}catch(e){}}
+const WAVE_EVERY=()=>W<700?2.6:1.8, FALL_MIN=70, FALL_MAX=105;
+function spawn(){advancing=false;qStart=performance.now();drones=[];target=null;spawnWave(true);nextWaveAt=qStart+WAVE_EVERY()*1000}
+/* ปล่อยตัวเลือกลงมาเป็นระลอก (เหมือนเกมฟันผลไม้): ทุกระลอกมีครบทุกตัวเลือก ลอยลงจากฟ้าด้วยความเร็วต่างกัน
+   ระลอกแรกเริ่มบนจอทันทีเพื่อไม่ให้หน้าจอว่าง ตัวเลือกที่ไม่ได้กรอก (ว่าง) จะไม่ถูกปล่อยลงมา */
+function spawnWave(first){
+ const q=qs[idx]||defaults()[0];
+ const opts=q.answers.map((a,i)=>({a,i})).filter(o=>o.a.text||o.a.image_url||o.i===q.correct);
+ const order=opts.map((_,i)=>i).sort(()=>Math.random()-.5);
+ opts.forEach((o,k)=>{
+  const slot=order[k];
+  drones.push({ans:o.a,word:o.a.text||'รูปภาพ',correct:o.i===q.correct,
+   x:W*(.12+.76*(slot+.5)/opts.length)+(Math.random()-.5)*W*.05,
+   y:first?H*(.16+Math.random()*.34):-70-Math.random()*70,
+   vx:(Math.random()-.5)*34,vy:FALL_MIN+Math.random()*(FALL_MAX-FALL_MIN),
+   phase:Math.random()*7,hit:false});
+ });
+}
+function drawDrone(d,t){x.save();x.translate(d.x,d.y+Math.sin(t/500+d.phase)*5);
+const sel=d===target;
+const box=EduCommon.drawAnswerCard(x,d.ans,0,0,{imageSize:96,fill:'#0f2f45',stroke:sel?'#fde68a':'#67e8f9',lineWidth:sel?3:2,textColor:'#fff',font:'Kanit, Prompt, sans-serif',fontSize:17,maxTextWidth:190,minWidth:84,textOnlyHeight:38});
+x.strokeStyle=sel?'#fde68a':'#67e8f9';x.lineWidth=2;
+for(const sy of[-1,1])for(const sx of[-1,1]){const cx0=sx*box.w/2,cy0=sy*box.h/2;x.beginPath();x.moveTo(cx0,cy0);x.lineTo(cx0+sx*22,cy0+sy*20);x.stroke();x.beginPath();x.arc(cx0+sx*28,cy0+sy*25,7,0,7);x.stroke()}
+d.r=Math.max(box.w,box.h)/2+30;
+if(sel){x.strokeStyle='#fde68a';x.lineWidth=3;x.beginPath();x.arc(0,0,d.r+10,0,7);x.stroke()}
+x.restore()}
+
+function effect(px,py,good){for(let i=0;i<28;i++)particles.push({x:px,y:py,vx:(Math.random()-.5)*8,vy:(Math.random()-.5)*8,l:30,g:good})}
+function sp(p){return EduLibs.mapPoint(vid,p.x,p.y,W,H)}
+function handDraw(){if(pointerMode){if(!ptr)return;x.strokeStyle='#67e8f9';x.lineWidth=4;x.beginPath();x.arc(ptr.x,ptr.y,35,0,7);x.stroke();x.fillStyle='rgba(103,232,249,.16)';x.beginPath();x.arc(ptr.x,ptr.y,18,0,7);x.fill();return}if(!hand)return;const tp=sp(hand[8]);let px=tp.x,py=tp.y;x.strokeStyle='#67e8f9';x.lineWidth=4;x.beginPath();x.arc(px,py,35,0,7);x.stroke();x.fillStyle='rgba(103,232,249,.16)';x.beginPath();x.arc(px,py,18,0,7);x.fill();x.strokeStyle='#a5f3fc';x.lineWidth=2;[4,8,12,16,20].forEach(i=>{x.beginPath();x.moveTo(px,py);const q2=sp(hand[i]);x.lineTo(q2.x,q2.y);x.stroke()})}
+function tick(){if(advancing)return;const left=Math.max(0,TIME_LIMIT-(performance.now()-qStart)/1000);document.getElementById('tm').textContent=Math.ceil(left);if(left<=0)timeout()}
+function timeout(){advancing=true;target=null;document.getElementById('charge').style.width='0%';snd('charge');showBanner('⏱️ หมดเวลา',true,'ไปข้อต่อไป');say('หมดเวลาแล้ว! ไปข้อต่อไป');drones=[];setTimeout(()=>next(),800)}
+function showQuestion(q){
+ say(q.question);
+ const im=document.getElementById('qimg');
+ if(q.image_url){im.src=q.image_url;im.style.display='block'}else{im.removeAttribute('src');im.style.display='none'}
+ const pop=document.getElementById('question-pop'),txt=document.getElementById('question-pop-text'),pic=document.getElementById('question-pop-img');
+ txt.textContent=q.question||'คำถาม';
+ if(q.image_url){pic.src=q.image_url;pic.style.display='block'}else{pic.removeAttribute('src');pic.style.display='none'}
+ pop.classList.remove('hide','show');void pop.offsetWidth;pop.classList.add('show');
+ window.clearTimeout(window.__qPopTimer);window.__qPopTimer=setTimeout(()=>{pop.classList.remove('show');pop.classList.add('hide')},6500);
+}
+function total(){return qs.length||8}
+
+function loop(t){if(!running){loopOn=false;return}tick();if(pointerMode)process();x.clearRect(0,0,W,H);if(shake){x.save();x.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.86;if(shake<.5)shake=0}
+x.strokeStyle='rgba(103,232,249,.08)';for(let i=0;i<55;i++){let xx=(i*79+t*.08)%W,yy=(i*47)%H;x.beginPath();x.moveTo(xx,yy);x.lineTo(xx-20,yy+65);x.stroke()}const dt=Math.min(.05,(t-(lastT||t))/1000);lastT=t;if(!advancing&&performance.now()>=nextWaveAt){spawnWave(false);nextWaveAt=performance.now()+WAVE_EVERY()*1000}drones.forEach(d=>{d.x+=d.vx*dt;d.y+=d.vy*dt;if(d.x<90||d.x>W-90)d.vx*=-1});drones=drones.filter(d=>d.y<H+130);if(target&&!drones.includes(target))target=null;drones.forEach(d=>drawDrone(d,t));for(let i=particles.length-1;i>=0;i--){let p=particles[i];p.x+=p.vx;p.y+=p.vy;p.l--;x.globalAlpha=p.l/30;x.fillStyle=p.g?'#67e8f9':'#fb7185';x.fillRect(p.x,p.y,4,4);if(p.l<=0)particles.splice(i,1)}x.globalAlpha=1;handDraw();if(shake)x.restore();requestAnimationFrame(loop)}
+function isOpen(l){const wrist=l[0];let good=0;for(const tip of[8,12,16,20]){const pip=tip-2;const a=Math.hypot(l[tip].x-wrist.x,l[tip].y-wrist.y),b=Math.hypot(l[pip].x-wrist.x,l[pip].y-wrist.y);if(a>b*1.12)good++}return good>=3}
+function process(){if(!running||advancing)return;let px,py;if(pointerMode){if(!ptr){target=null;document.getElementById('charge').style.width='0%';return}px=ptr.x;py=ptr.y}else{if(!hand)return;open=isOpen(hand);if(!open){target=null;document.getElementById('charge').style.width='0%';return}const tp=sp(hand[8]);px=tp.x;py=tp.y}let best=null,dist=9999;drones.forEach(d=>{if(d.y<24)return;let z=Math.hypot(d.x-px,d.y-py);if(z<dist){dist=z;best=d}});if(!best||dist>(best.r||60)+(pointerMode?20:70)){target=null;document.getElementById('charge').style.width='0%';say(pointerMode?'เลื่อนเมาส์/นิ้วไปที่โดรนที่เป็นคำตอบ แล้วค้างไว้':'กางฝ่ามือแล้วเล็งไปที่โดรน')}else{if(target!==best){target=best;lockAt=performance.now();snd('charge')}let p=Math.min(100,(performance.now()-lockAt)/750*100);document.getElementById('charge').style.width=p+'%';say('ล็อกเป้า '+Math.round(p)+'%');if(p>=100){fire();}}}
+function fire(){if(!target||advancing)return;let d=target;target=null;document.getElementById('charge').style.width='0%';effect(d.x,d.y,d.correct);if(d.correct){let add=100*combo;score+=add;combo=Math.min(5,combo+1);snd('hit');showBanner('⚡ ยิงโดน! +'+add,true);say('ถูกต้อง! เก่งมาก')}else{combo=1;shake=18;snd('bad');showBanner('🛡️ โล่ป้องกัน! คำตอบผิด',false);say('ยังไม่ถูกต้อง ลองใหม่ได้เลย')}document.getElementById('s').textContent=score;document.getElementById('co').textContent=combo;EduCommon.reportScore(score);drones=drones.filter(q=>q!==d);lockAt=performance.now()}
+let bannerTimer=null;function showBanner(t,good,sub){let b=document.getElementById('banner');b.innerHTML='<b>'+t+'</b><div>'+(sub||((good)?'ตอบถูกต้อง':'คำตอบนี้ยังไม่ถูกต้อง'))+'</div>';b.style.display='block';b.style.background=good?'rgba(4,130,110,.9)':'rgba(180,25,55,.92)';clearTimeout(bannerTimer);bannerTimer=setTimeout(()=>b.style.display='none',1200)}
+function next(){idx++;document.getElementById('m').textContent=Math.min(idx,total())+'/'+total();if(idx>=total()){victory();return}spawn();showQuestion(qs[idx])}
+function victory(){running=false;const k=total()/8;let stars=score>=700*k?'★★★':score>=400*k?'★★☆':'★☆☆';document.getElementById('modal').style.display='flex';document.getElementById('mt').textContent='🏆 ภารกิจสำเร็จ';document.getElementById('md').innerHTML='<div class="stars">'+stars+'</div><p>คะแนน '+score+' • ทำภารกิจครบ '+total()+' ข้อ</p>';document.getElementById('go').textContent='เล่นอีกครั้ง';snd('victory');window.parent.postMessage({type:'EDUGAME_CYBER_RESULT',payload:{score,stars,rounds:total()}},'*');EduCommon.reportScore(score,{final:true})}
+function noteCam(t){document.getElementById('cam-note').textContent=t||''}
+function cameraDiagnostic(e){
+ const name=e&&e.name||'UnknownError';
+ const detail=EduLibs.explainCameraError(e);
+ return name+': '+detail+' | ตรวจสอบสิทธิ์กล้องของเว็บไซต์และอนุญาตให้ iframe ใช้กล้อง';
+}
+function enablePointer(msg){pointerMode=true;vid.style.display='none';if(msg)say(msg);document.getElementById('md').textContent='โหมดเมาส์/สัมผัส: เลื่อนเมาส์หรือนิ้วไปที่โดรนที่เป็นคำตอบแล้วค้างไว้ 0.75 วินาที'}
+cv.addEventListener('pointermove',e=>{if(!pointerMode)return;ptr={x:e.clientX,y:e.clientY}});
+cv.addEventListener('pointerdown',e=>{if(!pointerMode)return;ptr={x:e.clientX,y:e.clientY}});
+cv.addEventListener('pointerleave',()=>{if(pointerMode)ptr=null});
+let camHandle=null,tracker=null;
+function camFallback(msg){if(tracker){tracker.stop();tracker=null}if(camHandle){camHandle.stop();camHandle=null}camStarted=false;enablePointer(msg)}
+async function startCam(){
+ if(camStarted)return true;
+ try{
+  camHandle=await EduLibs.openCamera(vid);camHandle.onEnded(()=>camFallback('กล้องหยุดส่งภาพ — สลับเป็นโหมดเมาส์/สัมผัสแล้ว'));
+ }catch(e){noteCam('กล้องไม่พร้อม: '+cameraDiagnostic(e));enablePointer('เปิดกล้องไม่ได้ — '+cameraDiagnostic(e));return false}
+ try{
+  await EduLibs.loadAll(['hands']);
+  const hands=new Hands({locateFile:f=>EduLibs.handsBase()+f});hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:.6,minTrackingConfidence:.6});hands.onResults(r=>{hand=(r.multiHandLandmarks&&r.multiHandLandmarks[0])||null;process()});
+  await EduLibs.initHands(hands);
+  tracker=EduLibs.trackHands(vid,hands,{onFatal:()=>camFallback('ระบบตรวจจับมือหยุดทำงาน — สลับเป็นโหมดเมาส์/สัมผัสแล้ว')});camStarted=true;return true
+ }catch(e){camFallback('โหลดระบบตรวจจับมือไม่ได้: '+(e&&e.message||'ตรวจสอบอินเทอร์เน็ต')+' — สลับเป็นโหมดเมาส์/สัมผัสแล้ว');return false}
+}
+async function startRun(usePointer){
+ const modal=document.getElementById('modal');
+ document.getElementById('go').disabled=true;document.getElementById('goPointer').disabled=true;
+ if(usePointer){if(tracker){tracker.stop();tracker=null}if(camHandle){camHandle.stop();camHandle=null}camStarted=false;enablePointer();}else{pointerMode=false;ptr=null;vid.style.display='block';noteCam('กำลังเปิดกล้อง... กดอนุญาตเมื่อเบราว์เซอร์ถาม');}
+ if(!usePointer){const ok=await startCam();if(!ok){noteCam('');}}
+ document.getElementById('go').disabled=false;document.getElementById('goPointer').disabled=false;
+ modal.style.display='none';noteCam('');
+ score=0;combo=1;idx=0;document.getElementById('s').textContent=0;document.getElementById('co').textContent=1;
+ if(!qs.length)qs=defaults();
+ document.getElementById('m').textContent='0/'+total();spawn();running=true;showQuestion(qs[0]);snd('charge');
+ if(!loopOn){loopOn=true;requestAnimationFrame(loop)}
+}
+document.getElementById('go').onclick=()=>startRun(false);
+document.getElementById('goPointer').onclick=()=>startRun(true);
+addEventListener('message',e=>{if(e.data?.type==='EDUGAME_CYBER_QUESTION_SET'){qs=norm(e.data.payload?.questions||e.data.questions||[]);EduCommon.preloadQuestions(qs);window.EDUGAME_QUESTIONS=qs;document.getElementById('md').textContent='ชุดคำถามถูกส่งมาจาก EduGame แล้ว กางฝ่ามือเพื่อเล็งเป้าหมาย'}});window.parent.postMessage({type:'EDUGAME_CYBER_READY'},'*');
+</script></body></html>
